@@ -1,0 +1,16 @@
+# dependencias y artefactos
+node_modules
+dist
+*.log
+
+# IDE / SO
+.vscode
+.DS_Store
+
+# docs y otros
+docs
+**/*.md
+
+# tests
+coverage
+__tests__/
