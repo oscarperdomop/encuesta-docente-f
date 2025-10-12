@@ -9,10 +9,11 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "strict": true,
     "noEmit": true,
     "esModuleInterop": false,
     "skipLibCheck": true
-  }
+  },
+  "include": ["src"]
 }

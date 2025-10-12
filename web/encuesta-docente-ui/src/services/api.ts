@@ -1,5 +1,5 @@
 // src/services/api.ts
-import axios, { type AxiosRequestHeaders } from "axios";
+import axios, { AxiosHeaders } from "axios";
 
 const BASE =
   (import.meta as any).env?.VITE_API_URL || "http://localhost:8000/api/v1";
@@ -12,14 +12,15 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const t = localStorage.getItem("token");
   if (t) {
-    const headers = (config.headers ?? {}) as AxiosRequestHeaders;
-    headers.Authorization = `Bearer ${t}`;
-    config.headers = headers;
+    // Asegura un objeto headers compatible con Axios v1 (AxiosHeaders)
+    if (!config.headers) {
+      config.headers = new AxiosHeaders() as any;
+    }
+    (config.headers as any).Authorization = `Bearer ${t}`;
   }
   return config;
 });
 
-// Expira sesión si el backend devuelve 401/419/440
 api.interceptors.response.use(
   (r) => r,
   (err) => {
@@ -36,5 +37,4 @@ api.interceptors.response.use(
   }
 );
 
-console.info("[API] baseURL =", api.defaults.baseURL);
 export default api;
