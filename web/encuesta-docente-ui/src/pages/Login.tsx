@@ -16,23 +16,16 @@ export default function Login() {
       await login(email.trim().toLowerCase());
       await me(); // verifica token
       nav("/intro", { replace: true });
-    } catch (err) {
-      if (
-        err &&
-        typeof err === "object" &&
-        "response" in err &&
-        err.response &&
-        "data" in err.response &&
-        err.response.data &&
-        "detail" in err.response.data
-      ) {
-        setError(
-          (err as { response: { data: { detail: string } } }).response.data
-            .detail
-        );
-      } else {
-        setError("Correo no autorizado");
-      }
+    } catch (e) {
+      const err = e as {
+        response?: { data?: { detail?: string; message?: string } };
+        message?: string;
+      };
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        "Correo no autorizado";
+      setError(msg);
       localStorage.removeItem("token");
     } finally {
       setLoading(false);

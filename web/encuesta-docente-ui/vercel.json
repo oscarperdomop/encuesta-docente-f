@@ -1,13 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build"
-    }
-  ],
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
-  ]
+  "name": "encuesta-docente-ui",
+  "installCommand": "npm --prefix web/encuesta-docente-ui ci",
+  "buildCommand": "npm --prefix web/encuesta-docente-ui run build",
+  "outputDirectory": "web/encuesta-docente-ui/dist",
+  "framework": "vite",
+  "rewrites": [{ "source": "/(.*)", "destination": "/" }]
 }
