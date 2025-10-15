@@ -1,3 +1,4 @@
+// src/pages/SurveyStep2.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import USCOHeader from "@/components/USCOHeader";
@@ -10,6 +11,7 @@ import {
 } from "@/services/attempts";
 import { useSelection } from "@/store/selection";
 import { loadAttemptExpiry, clearAttemptExpiry } from "@/utils/attemptTimer";
+import ConfirmDialog from "@/components/ConfirmDialog"; // <-- nuevo
 
 type QRow = QuestionRow & { tipo: "likert" | "texto" };
 
@@ -30,15 +32,17 @@ export default function SurveyStep2() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
-  const [qsStep1, setQsStep1] = useState<QRow[]>([]); // Q1..Q9
-  const [qsStep2, setQsStep2] = useState<QRow[]>([]); // Q10..Q16
+  const [qsStep1, setQsStep1] = useState<QRow[]>([]);
+  const [qsStep2, setQsStep2] = useState<QRow[]>([]);
 
   const [vals, setVals] = useState<Record<string, number>>({});
   const [positivos, setPositivos] = useState("");
   const [mejorar, setMejorar] = useState("");
   const [comentarios, setComentarios] = useState("");
 
-  // sesión
+  // estado del modal
+  const [showConfirm, setShowConfirm] = useState(false);
+
   useEffect(() => {
     me()
       .then((u) => setUserNombre(u?.nombre || u?.email || "Usuario"))
@@ -48,7 +52,6 @@ export default function SurveyStep2() {
       });
   }, [nav]);
 
-  // resolver attempt activo + cargar teacher + expiry (usa persistido si existe)
   useEffect(() => {
     (async () => {
       if (!surveyId) return;
@@ -68,11 +71,9 @@ export default function SurveyStep2() {
 
       setAttemptId(currentId);
       if (!routeAttemptId || routeAttemptId !== next.attempt_id) {
-        // corrige URL si no coincide
         nav(`/encuesta/${next.attempt_id}/step2`, { replace: true });
       }
 
-      // Timer: primero intenta desde LS (continuación entre pasos), si no, usa el del server
       const persisted = currentId ? loadAttemptExpiry(currentId) : null;
       const exp = persisted
         ? new Date(persisted)
@@ -84,7 +85,6 @@ export default function SurveyStep2() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surveyId, routeAttemptId]);
 
-  // temporizador
   useEffect(() => {
     if (!expiresAt) return;
     const tick = () => {
@@ -100,7 +100,6 @@ export default function SurveyStep2() {
     return () => clearInterval(id);
   }, [expiresAt, nav]);
 
-  // carga de preguntas (Step1: Q1..Q9, Step2: Q10..Q16)
   useEffect(() => {
     (async () => {
       if (!surveyId) return;
@@ -123,7 +122,6 @@ export default function SurveyStep2() {
         setQsStep1(step1);
         setQsStep2(step2);
 
-        // init selects Q10..Q15 + restaurar progreso si existe
         const init: Record<string, number> = {};
         step2
           .filter((q) => q.codigo !== "Q16")
@@ -152,7 +150,6 @@ export default function SurveyStep2() {
     })();
   }, [surveyId, attemptId]);
 
-  // autosave local de Step2
   useEffect(() => {
     if (!attemptId) return;
     localStorage.setItem(
@@ -161,7 +158,6 @@ export default function SurveyStep2() {
     );
   }, [attemptId, vals, positivos, mejorar, comentarios]);
 
-  // validación de Q10..Q15
   const readyStep2 = useMemo(() => {
     const likerts = qsStep2.filter((q) => q.codigo !== "Q16");
     return likerts.every((q) => {
@@ -173,10 +169,10 @@ export default function SurveyStep2() {
   const setVal = (qid: string, v: number) =>
     setVals((p) => ({ ...p, [qid]: v }));
 
+  // Validaciones previas + abrir modal
   async function onSubmit() {
     if (!attemptId) return;
 
-    // Validar Step1 completo (Q1..Q9) desde LS
     const rawStep1 = localStorage.getItem(`attempt:${attemptId}:step1`);
     const step1Vals: Record<string, number> = rawStep1
       ? JSON.parse(rawStep1)
@@ -198,12 +194,24 @@ export default function SurveyStep2() {
       );
       return;
     }
-    if (!window.confirm("¿Desea terminar la encuesta?")) return;
+
+    // en vez de window.confirm → modal institucional
+    setShowConfirm(true);
+  }
+
+  // Acción real de envío (confirmada desde el modal)
+  const handleConfirmSend = async () => {
+    if (!attemptId) return;
+    setShowConfirm(false);
 
     try {
       setSending(true);
 
-      // Construir 15 respuestas (Q1..Q15) con clave `value`
+      const rawStep1 = localStorage.getItem(`attempt:${attemptId}:step1`);
+      const step1Vals: Record<string, number> = rawStep1
+        ? JSON.parse(rawStep1)
+        : {};
+
       const a1: LikertAnswer[] = qsStep1.map((q) => ({
         question_id: q.id,
         value: Number(step1Vals[q.id]),
@@ -212,27 +220,21 @@ export default function SurveyStep2() {
         .filter((q) => q.codigo !== "Q16")
         .map((q) => ({ question_id: q.id, value: Number(vals[q.id]) }));
 
-      const answers: LikertAnswer[] = [...a1, ...a2];
-
-      await submitAttempt(attemptId, answers, {
+      await submitAttempt(attemptId, [...a1, ...a2], {
         positivos: (positivos || "").trim(),
         mejorar: (mejorar || "").trim(),
         comentarios: (comentarios || "").trim(),
       });
 
-      // limpiar progreso y expiry de este attempt
       localStorage.removeItem(`attempt:${attemptId}:step1`);
       localStorage.removeItem(`attempt:${attemptId}:step2`);
       clearAttemptExpiry(attemptId);
 
-      // Avanzar al siguiente o ir a resumen
       if (!surveyId) return nav("/docentes", { replace: true });
       const next = await getNextAttempt(surveyId);
-      if (next?.attempt_id) {
+      if (next?.attempt_id)
         nav(`/encuesta/${next.attempt_id}/step1`, { replace: true });
-      } else {
-        nav("/resumen", { replace: true });
-      }
+      else nav("/resumen", { replace: true });
     } catch (e: any) {
       const detail =
         e?.response?.data?.detail ||
@@ -242,7 +244,7 @@ export default function SurveyStep2() {
     } finally {
       setSending(false);
     }
-  }
+  };
 
   const fmtTimer = (s: number | null) =>
     s === null
@@ -252,9 +254,11 @@ export default function SurveyStep2() {
         ).padStart(2, "0")}`;
 
   return (
-    <div className="min-h-screen bg-usco-bg">
-      <USCOHeader subtitle="Encuesta Docente · Paso 2/2" />
-      <main className="max-w-5xl mx-auto px-4 md:px-6 py-6">
+    <USCOHeader
+      subtitle="Encuesta Docente · Paso 2/2"
+      containerClass="max-w-5xl"
+    >
+      <div className="min-h-[calc(100vh-5rem)]">
         <div className="flex items-center justify-between mb-4">
           <div>
             <b>{userNombre}</b> · Docente actual: <b>{teacherNombre}</b>
@@ -358,12 +362,23 @@ export default function SurveyStep2() {
             </div>
           </div>
         )}
-      </main>
+      </div>
+
+      {/* Modal institucional de confirmación */}
+      <ConfirmDialog
+        open={showConfirm}
+        title="Terminar encuesta"
+        message="¿Desea terminar la encuesta? Podrás continuar con el siguiente docente si aún tienes intentos."
+        confirmText="Sí, enviar"
+        cancelText="No, volver"
+        onCancel={() => setShowConfirm(false)}
+        onConfirm={handleConfirmSend}
+      />
 
       <p className="text-center text-gray-500 mt-6 text-sm">
         © USCO — Prototipo para demostración
       </p>
-    </div>
+    </USCOHeader>
   );
 }
 

@@ -1,3 +1,4 @@
+// src/pages/SurveyStep1.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import USCOHeader from "@/components/USCOHeader";
@@ -39,7 +40,6 @@ export default function SurveyStep1() {
     (async () => {
       try {
         setLoading(true);
-
         const next = await getNextAttempt(surveyId);
         if (!next) {
           alert("No hay intento activo. Regresando a docentes.");
@@ -53,8 +53,6 @@ export default function SurveyStep1() {
 
         setTeacherNombre(next.teacher_nombre);
         setExpiresAt(next.expires_at ? new Date(next.expires_at) : null);
-
-        // >>> GUARDA el expiry para que Step 2 continúe el conteo
         saveAttemptExpiry(next.attempt_id, next.expires_at || null);
 
         const all = await getSurveyQuestions(surveyId);
@@ -120,9 +118,12 @@ export default function SurveyStep1() {
         ).padStart(2, "0")}`;
 
   return (
-    <div className="min-h-screen bg-usco-bg">
-      <USCOHeader subtitle="Encuesta Docente · Paso 1/2" />
-      <main className="max-w-5xl mx-auto px-4 md:px-6 py-6">
+    <USCOHeader
+      subtitle="Encuesta Docente · Paso 1/2"
+      containerClass="max-w-5xl"
+    >
+      {/* Alto mínimo del viewport bajo el header */}
+      <div className="min-h-[calc(100vh-5rem)]">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
           <div className="text-sm text-gray-700">
             <b>{userNombre}</b> · Docente actual: <b>{teacherNombre}</b>
@@ -195,7 +196,7 @@ export default function SurveyStep1() {
         <p className="text-center text-gray-500 mt-6 text-sm">
           © USCO — Prototipo para demostración
         </p>
-      </main>
-    </div>
+      </div>
+    </USCOHeader>
   );
 }
