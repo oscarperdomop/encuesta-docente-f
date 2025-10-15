@@ -56,9 +56,7 @@ export default function USCOHeader({
         {children}
       </main>
 
-      <p className="text-center text-gray-500 mt-6 text-sm">
-        © USCO — Prototipo para demostración
-      </p>
+      <p className="text-center text-gray-500 mt-6 text-sm"></p>
     </div>
   );
 }

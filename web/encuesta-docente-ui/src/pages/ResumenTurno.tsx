@@ -46,12 +46,11 @@ export default function ResumenTurno() {
     })();
   }, [surveyId]);
 
-  // contadores (fallback si API cambia nombres o items viene vacío)
+  // contadores
   const counts = useMemo(() => {
     const base = { enviados: 0, en_progreso: 0, pendientes: 0 };
     if (!summary) return base;
 
-    // si la API ya trae totales confiables, úsalos
     if (
       typeof summary.enviados === "number" ||
       typeof summary.en_progreso === "number" ||
@@ -64,7 +63,6 @@ export default function ResumenTurno() {
       };
     }
 
-    // fallback: cuenta por estados en items
     const c = { ...base };
     for (const it of summary.items || []) {
       if (it.estado === "enviado") c.enviados++;
@@ -76,16 +74,15 @@ export default function ResumenTurno() {
 
   async function onFinish() {
     try {
-      // opcional: que el backend invalide el token/registro de sesión
       await api
         .post("/sessions/close", { survey_id: surveyId })
         .catch(() => {});
     } finally {
       await logout({ server: true });
-      // hard redirect (evita volver con “atrás”)
       location.replace("/login");
     }
   }
+
   const canFinish = useMemo(() => {
     if (!summary) return !hasNext;
     if (typeof summary.can_finish === "boolean") return summary.can_finish;
@@ -93,10 +90,11 @@ export default function ResumenTurno() {
   }, [summary, hasNext, counts]);
 
   return (
-    <div className="min-h-screen bg-usco-bg">
-      <USCOHeader subtitle="Encuesta Docente · Resumen de turno" />
-
-      <main className="max-w-5xl mx-auto px-4 md:px-6 py-6">
+    <USCOHeader
+      subtitle="Encuesta Docente · Resumen de turno"
+      containerClass="max-w-5xl"
+    >
+      <div className="min-h-[calc(100vh-5rem)]">
         <div className="flex items-center justify-between mb-4">
           <div className="text-sm text-gray-700">
             <b>{userNombre}</b>
@@ -162,11 +160,7 @@ export default function ResumenTurno() {
             </button>
           </div>
         </div>
-
-        <p className="text-center text-gray-500 mt-6 text-sm">
-          © USCO — Prototipo para demostración
-        </p>
-      </main>
-    </div>
+      </div>
+    </USCOHeader>
   );
 }
