@@ -1,8 +1,9 @@
 // src/pages/DocentesSelect.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import USCOHeader from "@/components/USCOHeader";
+import api from "@/services/api";
 import { me } from "@/services/auth";
 import {
   getActiveSurveys,
@@ -17,8 +18,16 @@ import {
 } from "@/services/attempts";
 import { useSelection } from "@/store/selection";
 
+// Lee variante desde .env (A = ocultar evaluados, B = mostrar con flag)
+const TEACHERS_VARIANT = (import.meta.env.VITE_TEACHERS_VARIANT || "B")
+  .toString()
+  .toUpperCase() as "A" | "B";
+
 export default function DocentesSelect() {
   const nav = useNavigate();
+  const openedRef = useRef(false); // evita doble montaje
+  const retryRef = useRef(false); // evita reintentos infinitos en onStart
+
   const { surveyId, setSurveyId, selected, toggle, clear } = useSelection();
 
   const [userNombre, setUserNombre] = useState("Usuario");
@@ -27,7 +36,27 @@ export default function DocentesSelect() {
   const [q, setQ] = useState("");
   const [evaluatedIds, setEvaluatedIds] = useState<Set<string>>(new Set());
 
-  // sesión
+  // --- util: handshake de turno ---
+  async function ensureTurnoOpen(): Promise<string> {
+    try {
+      const { data: cur } = await api.get("/sessions/turno/current");
+      if (cur?.turno_id) {
+        sessionStorage.setItem("turnoId", cur.turno_id);
+        return cur.turno_id as string;
+      }
+      sessionStorage.removeItem("turnoId");
+    } catch {
+      sessionStorage.removeItem("turnoId");
+    }
+
+    const { data } = await api.post("/sessions/turno/open");
+    const tid = data?.turno_id as string;
+    if (!tid) throw new Error("No se obtuvo turno_id");
+    sessionStorage.setItem("turnoId", tid);
+    return tid;
+  }
+
+  // 1) Sesión (obtiene nombre o expulsa al login)
   useEffect(() => {
     me()
       .then((u) => setUserNombre(u?.nombre || u?.email || "Usuario"))
@@ -37,11 +66,31 @@ export default function DocentesSelect() {
       });
   }, [nav]);
 
-  // datos + estados enviados
+  // 2) TURNO: handshake idempotente al montar
+  useEffect(() => {
+    if (openedRef.current) return;
+    openedRef.current = true;
+
+    (async () => {
+      try {
+        await ensureTurnoOpen();
+      } catch (e: any) {
+        const msg =
+          e?.response?.data?.detail ||
+          e?.message ||
+          "Has alcanzado el límite de turnos.";
+        alert(msg);
+        nav("/intro", { replace: true });
+      }
+    })();
+  }, [nav]);
+
+  // 3) Datos + estados (evaluados)
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
+        // Asegura surveyId
         let sid = surveyId;
         if (!sid) {
           const activas = await getActiveSurveys();
@@ -50,18 +99,24 @@ export default function DocentesSelect() {
           setSurveyId(sid);
         }
 
-        const rows = await getSurveyTeachers(sid!);
+        // Pide docentes según variante
+        const rows = await getSurveyTeachers(sid!, {
+          hideEvaluated: TEACHERS_VARIANT === "A",
+          includeState: true, // en B devuelve evaluated; en A igual no molesta
+        });
         setTeachers(rows);
 
+        // Construye set de "evaluados"
         const sent = new Set<string>();
 
-        // A) si teachers ya trae estado, úsalo
-        for (const t of rows) {
-          // @ts-expect-error: algunos backends envían estado
-          if (t?.estado === "enviado") sent.add(t.id);
+        // Variante B: el backend marca cada fila con `evaluated: true`
+        if (TEACHERS_VARIANT === "B") {
+          for (const t of rows) {
+            if ((t as any)?.evaluated) sent.add(t.id);
+          }
         }
 
-        // B) intenta summary del backend
+        // Además, intenta complementar con summary (si tu API lo soporta)
         try {
           const summary = await getAttemptsSummary(sid!);
           for (const it of (summary?.items ?? []) as AttemptsSummary["items"]) {
@@ -70,10 +125,10 @@ export default function DocentesSelect() {
             }
           }
         } catch {
-          // ignora error: seguiremos con fallback local
+          // ignorar errores de summary
         }
 
-        // C) fallback local storage
+        // Fallback local (por si usabas almacenamiento local antes)
         const raw = localStorage.getItem(`sent:${sid}`);
         const localSent = raw ? (JSON.parse(raw) as string[]) : [];
         localSent.forEach((id) => sent.add(id));
@@ -87,7 +142,7 @@ export default function DocentesSelect() {
     })();
   }, [surveyId, setSurveyId]);
 
-  // filtro
+  // 4) Filtro
   const filtered = useMemo(() => {
     const k = q.trim().toLowerCase();
     if (!k) return teachers;
@@ -99,6 +154,10 @@ export default function DocentesSelect() {
     });
   }, [teachers, q]);
 
+  // Usa tanto el set como el flag por fila
+  const isRowEvaluated = (t: TeacherRow) =>
+    evaluatedIds.has(t.id) || (t as any)?.evaluated === true;
+
   const totalSelected = useMemo(
     () =>
       Object.entries(selected).filter(([id, v]) => v && !evaluatedIds.has(id))
@@ -106,6 +165,7 @@ export default function DocentesSelect() {
     [selected, evaluatedIds]
   );
 
+  // 5) Iniciar encuesta (usa X-Turno-Id del interceptor)
   async function onStart() {
     const tids = Object.entries(selected)
       .filter(([, v]) => v)
@@ -124,148 +184,171 @@ export default function DocentesSelect() {
       }
       nav(`/encuesta/${next.attempt_id}/step1`, { replace: true });
     } catch (e: any) {
-      const detail = e?.response?.data?.detail || e?.message;
-      alert(detail || "No se pudo iniciar la encuesta.");
+      const detail = e?.response?.data?.detail || e?.message || "";
+      if (!retryRef.current && /Turno inválido o cerrado/i.test(detail || "")) {
+        retryRef.current = true;
+        try {
+          await ensureTurnoOpen();
+          await createAttempts(surveyId!, tids);
+          const next = await getNextAttempt(surveyId!);
+          if (next)
+            nav(`/encuesta/${next.attempt_id}/step1`, { replace: true });
+          return;
+        } catch (e2: any) {
+          const d2 = e2?.response?.data?.detail || e2?.message;
+          alert(d2 || "No se pudo iniciar la encuesta.");
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        alert(detail || "No se pudo iniciar la encuesta.");
+      }
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <USCOHeader
-      subtitle="Encuesta Docente · Selección de docentes"
-      containerClass="max-w-5xl"
-    >
-      {/* Encabezado contextual */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-gray-700">
-          Hola, <b>{userNombre}</b>
-        </div>
-        <div className="text-sm text-gray-500">
-          {totalSelected} seleccionados
-        </div>
-      </div>
-
-      {/* Controles */}
-      <div className="bg-white rounded-2xl shadow-card p-4 md:p-6 mb-5">
-        <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-          <input
-            type="text"
-            className="w-full sm:max-w-md border rounded-xl p-3 outline-none focus:ring-2 focus:ring-usco-primary/30 focus:border-usco-primary"
-            placeholder="Buscar docente por nombre, identificador o programa…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            aria-label="Buscar docente"
-          />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
-              onClick={() => setQ("")}
-            >
-              Limpiar búsqueda
-            </button>
-            <button
-              type="button"
-              className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
-              onClick={() => clear()}
-            >
-              Limpiar selección
-            </button>
+    <USCOHeader subtitle="Encuesta Docente · Selección de docentes">
+      {/* Mantén el alto mínimo descontando ~altura del header (5rem) */}
+      <div className="min-h-[calc(100vh-5rem)] bg-usco-bg">
+        <main className="max-w-5xl mx-auto px-4 md:px-6 py-6">
+          {/* Encabezado contextual */}
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div className="text-sm text-gray-700">
+              Hola, <b>{userNombre}</b>
+            </div>
+            <div className="text-sm text-gray-500">
+              {totalSelected} seleccionados
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Grid docentes */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {loading ? (
-          <div className="col-span-full text-center text-gray-500 py-8">
-            Cargando…
+          {/* Controles */}
+          <div className="bg-white rounded-2xl shadow-card p-4 md:p-6 mb-5">
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+              <input
+                type="text"
+                className="w-full sm:max-w-md border rounded-xl p-3 outline-none focus:ring-2 focus:ring-usco-primary/30 focus:border-usco-primary"
+                placeholder="Buscar docente por nombre, identificador o programa…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                aria-label="Buscar docente"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
+                  onClick={() => setQ("")}
+                >
+                  Limpiar búsqueda
+                </button>
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
+                  onClick={() => clear()}
+                >
+                  Limpiar selección
+                </button>
+              </div>
+            </div>
           </div>
-        ) : filtered.length ? (
-          filtered.map((t) => {
-            const isEvaluated = evaluatedIds.has(t.id);
-            return (
-              <label
-                key={t.id}
-                className={[
-                  "rounded-2xl shadow-card p-4 flex items-center gap-4 cursor-pointer transition",
-                  isEvaluated
-                    ? "bg-gray-100 opacity-70 cursor-not-allowed"
-                    : "bg-white hover:shadow-md",
-                ].join(" ")}
-                aria-checked={!!selected[t.id]}
-                role="checkbox"
-                tabIndex={isEvaluated ? -1 : 0}
-                aria-disabled={isEvaluated}
-                onKeyDown={(ev) => {
-                  if (isEvaluated) return;
-                  if (ev.key === " " || ev.key === "Enter") {
-                    ev.preventDefault();
-                    toggle(t.id);
-                  }
-                }}
+
+          {/* Grid docentes */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {loading ? (
+              <div className="col-span-full text-center text-gray-500 py-8">
+                Cargando…
+              </div>
+            ) : filtered.length ? (
+              filtered.map((t) => {
+                const isEvaluated = isRowEvaluated(t);
+                return (
+                  <label
+                    key={t.id}
+                    className={[
+                      "rounded-2xl shadow-card p-4 flex items-center gap-4 cursor-pointer transition",
+                      isEvaluated
+                        ? "bg-gray-100 opacity-70 cursor-not-allowed"
+                        : "bg-white hover:shadow-md",
+                    ].join(" ")}
+                    aria-checked={!!selected[t.id]}
+                    role="checkbox"
+                    tabIndex={isEvaluated ? -1 : 0}
+                    aria-disabled={isEvaluated}
+                    onKeyDown={(ev) => {
+                      if (isEvaluated) return;
+                      if (ev.key === " " || ev.key === "Enter") {
+                        ev.preventDefault();
+                        toggle(t.id);
+                      }
+                    }}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-gray-100 grid place-items-center font-semibold select-none">
+                      {iniciales(t.nombre)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium truncate">{t.nombre}</div>
+                      <div className="text-sm text-gray-500 truncate">
+                        {t.programa || "—"}
+                      </div>
+                      {isEvaluated && (
+                        <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                          Ya enviado
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={!!selected[t.id] && !isEvaluated}
+                      onChange={() => {
+                        if (!isEvaluated) toggle(t.id);
+                      }}
+                      disabled={isEvaluated}
+                      className="w-5 h-5"
+                      aria-label={
+                        isEvaluated
+                          ? `${t.nombre} ya evaluado`
+                          : `Seleccionar a ${t.nombre}`
+                      }
+                      title={isEvaluated ? "Ya evaluado" : undefined}
+                    />
+                  </label>
+                );
+              })
+            ) : (
+              <div className="col-span-full text-center text-gray-500 py-8">
+                No hay docentes disponibles.
+              </div>
+            )}
+          </div>
+
+          {/* Footer flotante */}
+          <div className="sticky bottom-0 mt-6 py-4 bg-usco-bg/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
+            <div className="max-w-5xl mx-auto px-4 md:px-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
+                onClick={() => nav("/justificacion")}
               >
-                <div className="w-12 h-12 rounded-full bg-gray-100 grid place-items-center font-semibold select-none">
-                  {iniciales(t.nombre)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">{t.nombre}</div>
-                  <div className="text-sm text-gray-500 truncate">
-                    {t.programa || "—"}
-                  </div>
-                  {isEvaluated && (
-                    <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                      Ya enviado
-                    </span>
-                  )}
-                </div>
-                <input
-                  type="checkbox"
-                  checked={!!selected[t.id] && !isEvaluated}
-                  onChange={() => {
-                    if (!isEvaluated) toggle(t.id);
-                  }}
-                  disabled={isEvaluated}
-                  className="w-5 h-5"
-                  aria-label={
-                    isEvaluated
-                      ? `${t.nombre} ya evaluado`
-                      : `Seleccionar a ${t.nombre}`
-                  }
-                  title={isEvaluated ? "Ya evaluado" : undefined}
-                />
-              </label>
-            );
-          })
-        ) : (
-          <div className="col-span-full text-center text-gray-500 py-8">
-            No hay docentes disponibles.
+                Regresar
+              </button>
+              <button
+                type="button"
+                disabled={!totalSelected || loading}
+                className="px-5 py-2 rounded-xl bg-usco-primary text-white disabled:opacity-60"
+                onClick={onStart}
+              >
+                {loading
+                  ? "Iniciando…"
+                  : `Iniciar encuesta (${totalSelected || 0})`}
+              </button>
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Footer flotante */}
-      <div className="sticky bottom-0 mt-6 py-4 bg-usco-bg/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
-        <div className="max-w-5xl mx-auto px-4 md:px-6 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
-            onClick={() => nav("/justificacion")}
-          >
-            Regresar
-          </button>
-          <button
-            type="button"
-            disabled={!totalSelected || loading}
-            className="px-5 py-2 rounded-xl bg-usco-primary text-white disabled:opacity-60"
-            onClick={onStart}
-          >
-            {loading
-              ? "Iniciando…"
-              : `Iniciar encuesta (${totalSelected || 0})`}
-          </button>
-        </div>
+          <p className="text-center text-gray-500 mt-6 text-sm">
+            © USCO — Prototipo para demostración
+          </p>
+        </main>
       </div>
     </USCOHeader>
   );

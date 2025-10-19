@@ -6,27 +6,42 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // NUEVO: modal para bloqueo por turnos agotados
+  const [blockedMsg, setBlockedMsg] = useState<string | null>(null);
+
   const nav = useNavigate();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setBlockedMsg(null);
     setLoading(true);
     try {
+      // Si tu login es por email (como hoy):
       await login(email.trim().toLowerCase());
-      await me(); // verifica token
+
+      // Verifica token
+      await me();
+
       nav("/intro", { replace: true });
-    } catch (e) {
-      const err = e as {
-        response?: { data?: { detail?: string; message?: string } };
-        message?: string;
-      };
-      const msg =
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        "Correo no autorizado";
-      setError(msg);
-      localStorage.removeItem("token");
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const detail =
+        e?.response?.data?.detail || e?.response?.data?.message || e?.message;
+
+      // NUEVO: si backend respondió 403 por turnos agotados, abrir modal y no guardar token
+      if (status === 403) {
+        setBlockedMsg(
+          detail ||
+            "Ya no tienes turnos para responder la encuesta, contacta con el administrador de la encuesta."
+        );
+        localStorage.removeItem("token");
+      } else {
+        const fallback = "Correo no autorizado";
+        setError(detail || fallback);
+        localStorage.removeItem("token");
+      }
     } finally {
       setLoading(false);
     }
@@ -75,6 +90,7 @@ export default function Login() {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
+
           {error && <div className="text-red-600 mt-2">{error}</div>}
 
           <div className="flex gap-3 justify-end mt-6">
@@ -98,6 +114,30 @@ export default function Login() {
           © USCO — Prototipo para demostración
         </p>
       </div>
+
+      {/* MODAL: sin turnos disponibles */}
+      {blockedMsg && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+        >
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+            <h2 className="text-lg font-semibold mb-2">
+              Sin turnos disponibles
+            </h2>
+            <p className="text-sm text-gray-700">{blockedMsg}</p>
+            <div className="mt-4 text-right">
+              <button
+                onClick={() => setBlockedMsg(null)}
+                className="px-4 py-2 rounded-xl bg-usco-primary text-white"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
