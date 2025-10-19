@@ -257,7 +257,13 @@ export default function DocentesSelect() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {loading ? (
               <div className="col-span-full text-center text-gray-500 py-8">
-                Cargando…
+                <img
+                  src="https://www.usco.edu.co/imagen-institucional/logo/precarga-usco2.gif"
+                  alt="Cargando..."
+                  width={80}
+                  height={90}
+                  className="mx-auto"
+                />
               </div>
             ) : filtered.length ? (
               filtered.map((t) => {
@@ -288,9 +294,9 @@ export default function DocentesSelect() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="font-medium truncate">{t.nombre}</div>
-                      <div className="text-sm text-gray-500 truncate">
-                        {t.programa || "—"}
-                      </div>
+                      {/*<div className="text-sm text-gray-500 truncate">
+                        {t.programa || "—"}   
+                      </div>*/}
                       {isEvaluated && (
                         <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
                           Ya enviado
@@ -325,13 +331,13 @@ export default function DocentesSelect() {
           {/* Footer flotante */}
           <div className="sticky bottom-0 mt-6 py-4 bg-usco-bg/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
             <div className="max-w-5xl mx-auto px-4 md:px-6 flex items-center justify-end gap-3">
-              <button
+              {/*<button
                 type="button"
                 className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
                 onClick={() => nav("/justificacion")}
               >
                 Regresar
-              </button>
+              </button>*/}
               <button
                 type="button"
                 disabled={!totalSelected || loading}

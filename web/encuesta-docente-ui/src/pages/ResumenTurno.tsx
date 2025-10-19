@@ -10,6 +10,7 @@ import {
 } from "@/services/attempts";
 import { useSelection } from "@/store/selection";
 import api from "@/services/api";
+import { getSurveyTeachers } from "@/services/catalogs";
 
 export default function ResumenTurno() {
   const nav = useNavigate();
@@ -19,6 +20,12 @@ export default function ResumenTurno() {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<AttemptsSummary | null>(null);
   const [hasNext, setHasNext] = useState(false);
+
+  // NEW: límite de turnos del backend (MAX_TURNOS)
+  const [turnoLimit, setTurnoLimit] = useState<number | null>(null);
+
+  // NEW: total de docentes asignados (para calcular "pendientes")
+  const [totalDocentes, setTotalDocentes] = useState<number>(0);
 
   // sesión
   useEffect(() => {
@@ -36,10 +43,33 @@ export default function ResumenTurno() {
       if (!surveyId) return;
       setLoading(true);
       try {
+        // 1) Summary + siguiente intento
         const s = await getAttemptsSummary(surveyId);
         setSummary(s);
+
         const next = await getNextAttempt(surveyId);
         setHasNext(!!next);
+
+        // 2) Quota de turnos (para mostrar/ocultar "Volver a la lista")
+        try {
+          const { data: quota } = await api.get("/sessions/turno/quota");
+          setTurnoLimit(typeof quota?.limit === "number" ? quota.limit : null);
+        } catch {
+          setTurnoLimit(null);
+        }
+
+        // 3) Total de docentes asignados (para calcular "pendientes")
+        try {
+          const docentes = await getSurveyTeachers(surveyId, {
+            // no ocultes evaluados, necesitamos el total
+            hideEvaluated: false,
+            // no es necesario estado por docente aquí
+            includeState: false,
+          });
+          setTotalDocentes(Array.isArray(docentes) ? docentes.length : 0);
+        } catch {
+          setTotalDocentes(0);
+        }
       } finally {
         setLoading(false);
       }
@@ -48,29 +78,56 @@ export default function ResumenTurno() {
 
   // contadores
   const counts = useMemo(() => {
-    const base = { enviados: 0, en_progreso: 0, pendientes: 0 };
-    if (!summary) return base;
+    // base
+    let enviados = 0;
+    let en_progreso = 0;
+    let pendientes = 0;
 
+    if (!summary) {
+      return { enviados, en_progreso, pendientes };
+    }
+
+    // A) backend nuevo: summary.estados
+    const estados = (summary as any)?.estados;
+    if (estados && typeof estados === "object") {
+      enviados = Number(estados.enviado || 0);
+      en_progreso = Number(estados.en_progreso || 0);
+      // "pendientes" = totalDocentes - enviados - en_progreso
+      pendientes = Math.max(0, (totalDocentes || 0) - enviados - en_progreso);
+      return { enviados, en_progreso, pendientes };
+    }
+
+    // B) backend antiguo: campos planos
     if (
-      typeof summary.enviados === "number" ||
-      typeof summary.en_progreso === "number" ||
-      typeof summary.pendientes === "number"
+      typeof (summary as any).enviados === "number" ||
+      typeof (summary as any).en_progreso === "number" ||
+      typeof (summary as any).pendientes === "number"
     ) {
-      return {
-        enviados: summary.enviados ?? 0,
-        en_progreso: summary.en_progreso ?? 0,
-        pendientes: summary.pendientes ?? 0,
-      };
+      enviados = Number((summary as any).enviados || 0);
+      en_progreso = Number((summary as any).en_progreso || 0);
+      // si "pendientes" plano no viene, lo derivamos
+      if (typeof (summary as any).pendientes === "number") {
+        pendientes = Number((summary as any).pendientes || 0);
+      } else {
+        pendientes = Math.max(0, (totalDocentes || 0) - enviados - en_progreso);
+      }
+      return { enviados, en_progreso, pendientes };
     }
 
-    const c = { ...base };
-    for (const it of summary.items || []) {
-      if (it.estado === "enviado") c.enviados++;
-      else if (it.estado === "en_progreso") c.en_progreso++;
-      else c.pendientes++;
+    // C) ultra-compatibilidad: si llegaran items, contamos por estado
+    if (Array.isArray((summary as any).items)) {
+      const items = (summary as any).items as Array<{ estado?: string }>;
+      enviados = items.filter((it) => it.estado === "enviado").length;
+      en_progreso = items.filter((it) => it.estado === "en_progreso").length;
+      pendientes = items.filter(
+        (it) => it.estado !== "enviado" && it.estado !== "en_progreso"
+      ).length;
+      return { enviados, en_progreso, pendientes };
     }
-    return c;
-  }, [summary]);
+
+    // fallback
+    return { enviados, en_progreso, pendientes };
+  }, [summary, totalDocentes]);
 
   async function onFinish() {
     try {
@@ -85,9 +142,13 @@ export default function ResumenTurno() {
 
   const canFinish = useMemo(() => {
     if (!summary) return !hasNext;
-    if (typeof summary.can_finish === "boolean") return summary.can_finish;
+    if (typeof (summary as any).can_finish === "boolean")
+      return (summary as any).can_finish;
     return counts.pendientes === 0 && counts.en_progreso === 0;
   }, [summary, hasNext, counts]);
+
+  // mostrar “Volver a la lista” solo si limit <= 1
+  const showBackToList = turnoLimit !== null && turnoLimit <= 1;
 
   return (
     <USCOHeader
@@ -108,9 +169,9 @@ export default function ResumenTurno() {
         <div className="bg-white rounded-2xl shadow-card p-5">
           {loading ? (
             <div className="text-center text-gray-500 py-8">Cargando…</div>
-          ) : summary && summary.items && summary.items.length > 0 ? (
+          ) : (summary as any)?.items && (summary as any).items.length > 0 ? (
             <ul className="space-y-2">
-              {summary.items.map((it) => (
+              {(summary as any).items.map((it: any) => (
                 <li
                   key={it.teacher_id}
                   className="flex items-center justify-between p-3 rounded-xl bg-gray-50"
@@ -145,12 +206,16 @@ export default function ResumenTurno() {
                 Ir al siguiente pendiente
               </button>
             )}
-            <button
-              className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
-              onClick={() => nav("/docentes")}
-            >
-              Volver a la lista
-            </button>
+
+            {showBackToList && (
+              <button
+                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
+                onClick={() => nav("/docentes")}
+              >
+                Volver a la lista
+              </button>
+            )}
+
             <button
               disabled={!canFinish}
               className="px-5 py-2 rounded-xl bg-usco-primary text-white disabled:opacity-60"

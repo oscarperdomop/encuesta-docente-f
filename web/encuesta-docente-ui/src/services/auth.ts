@@ -22,20 +22,38 @@ export async function me(): Promise<MeOut> {
 }
 
 /** Cierre de sesión robusto + broadcast a otras pestañas. */
-export async function logout(opts?: { server?: boolean }) {
+export async function logout(opts?: {
+  server?: boolean;
+  closeTurno?: boolean;
+}) {
+  // 1) Cerrar turno abierto (idempotente en backend)
+  try {
+    const turnoId = sessionStorage.getItem("turnoId");
+    if (opts?.closeTurno !== false && turnoId) {
+      await api.post("/sessions/turno/close", null, {
+        headers: { "X-Turno-Id": turnoId },
+      });
+    }
+  } catch {
+    // ignorar: si ya estaba cerrado/no existe, no bloquea el logout
+  }
+
+  // 2) (Opcional) logout de servidor si tienes endpoint dedicado
   try {
     if (opts?.server) {
-      // si no existe el endpoint, no pasa nada
       await api.post("/auth/logout");
     }
-  } catch {}
+  } catch {
+    // sin bloquear el cierre local
+  }
+
+  // 3) Limpieza local + broadcast a otras pestañas
   try {
-    // borra estado local
     localStorage.removeItem("token");
-    sessionStorage.clear();
-    // notifica a otras pestañas
-    localStorage.setItem("__logout__", String(Date.now()));
-    // limpia la marca para no dejar basura
+    sessionStorage.clear(); // también elimina turnoId y cualquier cache de página
+    localStorage.setItem("__logout__", String(Date.now())); // trigger storage event
     localStorage.removeItem("__logout__");
-  } catch {}
+  } catch {
+    // noop
+  }
 }
