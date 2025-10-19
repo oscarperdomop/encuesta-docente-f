@@ -1,7 +1,7 @@
-// Intro.tsx
+// src/pages/Intro.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { me } from "@/services/auth";
+import { me, logout } from "@/services/auth";
 import USCOHeader from "@/components/USCOHeader";
 
 export default function Intro() {
@@ -17,8 +17,23 @@ export default function Intro() {
       });
   }, [nav]);
 
+  async function handleLogout() {
+    const ok = window.confirm(
+      "¿Estás seguro que deseas finalizar este turno? Se cerrará tu sesión."
+    );
+    if (!ok) return;
+    try {
+      await logout({ server: false, closeTurno: true });
+    } finally {
+      nav("/login", { replace: true });
+    }
+  }
+
   return (
-    <USCOHeader subtitle="Encuesta Docente · Presentación">
+    <USCOHeader
+      subtitle="Encuesta Docente · Presentación"
+      onLogout={handleLogout}
+    >
       <div className="min-h-[calc(100vh-5rem)] grid place-items-center">
         {/* ajusta 5rem si cambias la altura del header */}
         <div className="w-full max-w-xl">
@@ -39,13 +54,13 @@ export default function Intro() {
               evaluación. Presiona <b>Continuar</b> para avanzar.
             </p>
             <div className="flex justify-end gap-3 mt-8">
-              <button
+              {/* <button
                 type="button"
                 className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
-                onClick={() => nav("/login")}
+                onClick={handleLogout}
               >
                 Cambiar de usuario
-              </button>
+              </button>*/}
               <button
                 className="px-5 py-2 rounded-xl bg-usco-primary text-white"
                 onClick={() => nav("/justificacion")}
