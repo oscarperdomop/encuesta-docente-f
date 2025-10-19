@@ -16,6 +16,8 @@ export type TeacherRow = {
   nombre: string;
   programa?: string | null;
   estado: "activo" | "inactivo";
+  /** Presente cuando include_state=true en el endpoint */
+  evaluated?: boolean;
 };
 
 export type QuestionRow = {
@@ -29,7 +31,7 @@ export type QuestionRow = {
 };
 
 export async function getActiveSurveys() {
-  const { data } = await api.get("/surveys/activas");
+  const { data } = await api.get<SurveyActiva[]>("/surveys/activas");
   return data;
 }
 
@@ -41,26 +43,40 @@ export async function getSurveyQuestions(surveyId: string) {
   return data;
 }
 
+/**
+ * Lista los docentes asignados a una encuesta.
+ * - hideEvaluated: si true, NO devuelve docentes ya evaluados por el usuario actual (A).
+ * - includeState: si true (default), agrega el booleano `evaluated` por fila (B).
+ * - q: texto a buscar (nombre, identificador, programa)
+ * - limit/offset: paginación
+ */
 export async function getSurveyTeachers(
   surveyId: string,
-  q?: string,
-  limit = 50,
-  offset = 0
-) {
-  const params = new URLSearchParams();
-  if (q) params.set("q", q);
-  params.set("limit", String(limit));
-  params.set("offset", String(offset));
+  opts: {
+    q?: string;
+    limit?: number;
+    offset?: number;
+    hideEvaluated?: boolean;
+    includeState?: boolean; // default true
+  } = {}
+): Promise<TeacherRow[]> {
+  const params: Record<string, string | number | boolean> = {};
+
+  if (opts.q) params.q = opts.q;
+  if (typeof opts.limit === "number") params.limit = opts.limit;
+  if (typeof opts.offset === "number") params.offset = opts.offset;
+  if (opts.hideEvaluated) params.hide_evaluated = 1;
+  // Por defecto pedimos el estado evaluated desde el backend
+  params.include_state = opts.includeState === false ? 0 : 1;
 
   const { data } = await api.get<TeacherRow[]>(
-    `/surveys/${surveyId}/teachers${params.toString() ? `?${params}` : ""}`
+    `/surveys/${surveyId}/teachers`,
+    { params }
   );
   return data;
 }
 
+/** Alias histórico (si en algún punto se usó este nombre) */
 export async function getQuestions(surveyId: string) {
-  const { data } = await api.get<QuestionRow[]>(
-    `/surveys/${surveyId}/questions`
-  );
-  return data;
+  return getSurveyQuestions(surveyId);
 }
