@@ -18,7 +18,7 @@ export default function Justificacion() {
   }, [nav]);
 
   return (
-    <USCOHeader subtitle="Encuesta Docente · Justificación">
+    <USCOHeader subtitle="Evaluación Docente · Justificación">
       {/* ocupa el alto visible bajo el header y centra el contenido */}
       <div className="min-h-[calc(100vh-5rem)] grid place-items-center">
         <main className="w-full max-w-3xl mx-auto px-4 md:px-6">

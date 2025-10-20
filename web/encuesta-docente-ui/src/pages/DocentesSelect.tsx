@@ -216,8 +216,13 @@ export default function DocentesSelect() {
           {/* Encabezado contextual */}
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <div className="text-sm text-gray-700">
-              Hola, <b>{userNombre}</b>
+              Bienvenido, <b>{userNombre}</b>
+              <p className="w-full text-sm text-gray-601">
+                Selecciona los Docentes que en el actual semestre toma cursos
+                con ellos.
+              </p>
             </div>
+
             <div className="text-sm text-gray-500">
               {totalSelected} seleccionados
             </div>
@@ -229,7 +234,7 @@ export default function DocentesSelect() {
               <input
                 type="text"
                 className="w-full sm:max-w-md border rounded-xl p-3 outline-none focus:ring-2 focus:ring-usco-primary/30 focus:border-usco-primary"
-                placeholder="Buscar docente por nombre, identificador o programa…"
+                placeholder="Buscar docente…"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 aria-label="Buscar docente"

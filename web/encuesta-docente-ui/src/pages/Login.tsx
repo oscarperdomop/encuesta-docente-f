@@ -1,13 +1,13 @@
+// src/pages/Login.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, me } from "@/services/auth";
+import LoginHeader from "@/components/LoginHeader";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // NUEVO: modal para bloqueo por turnos agotados
   const [blockedMsg, setBlockedMsg] = useState<string | null>(null);
 
   const nav = useNavigate();
@@ -18,19 +18,14 @@ export default function Login() {
     setBlockedMsg(null);
     setLoading(true);
     try {
-      // Si tu login es por email (como hoy):
       await login(email.trim().toLowerCase());
-
-      // Verifica token
       await me();
-
       nav("/intro", { replace: true });
     } catch (e: any) {
       const status = e?.response?.status;
       const detail =
         e?.response?.data?.detail || e?.response?.data?.message || e?.message;
 
-      // NUEVO: si backend respondió 403 por turnos agotados, abrir modal y no guardar token
       if (status === 403) {
         setBlockedMsg(
           detail ||
@@ -38,8 +33,7 @@ export default function Login() {
         );
         localStorage.removeItem("token");
       } else {
-        const fallback = "Correo no autorizado";
-        setError(detail || fallback);
+        setError(detail || "Correo no autorizado");
         localStorage.removeItem("token");
       }
     } finally {
@@ -48,72 +42,66 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f5ef]">
-      <link
-        rel="shortcut icon"
-        href="https://www.usco.edu.co/imagen-institucional/favicon.ico"
-        type="image/x-icon"
-      />
-      <div className="max-w-xl mx-auto pt-10 px-4">
-        {/* Encabezado */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-full bg-usco-primary text-white grid place-items-center font-bold">
-            US
-          </div>
-          <div>
-            <div className="font-semibold text-lg">
-              Universidad Surcolombiana
+    <div className="min-h-screen bg-[#f8f5ef] flex flex-col">
+      <LoginHeader />
+
+      <main className="flex-1">
+        <div className="max-w-xl mx-auto pt-10 px-4">
+          <form
+            onSubmit={onSubmit}
+            className="bg-white p-8 rounded-2xl shadow-card"
+          >
+            <h1 className="text-2xl font-bold mb-2">Iniciar sesión</h1>
+            <p className="text-gray-600 mb-6">
+              Acceso con correo institucional <b>u2XX@usco.edu.co</b>
+            </p>
+
+            <label className="text-sm font-medium" htmlFor="email">
+              Correo institucional
+            </label>
+            <input
+              id="email"
+              type="email"
+              className="mt-1 w-full border rounded-xl p-3 outline-none focus:ring-2 focus:ring-usco-primary/30 focus:border-usco-primary"
+              placeholder="u2xxxx@usco.edu.co o uxx.ixx@usco.edu.co"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+
+            {error && <div className="text-red-600 mt-2">{error}</div>}
+
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
+                onClick={() => setEmail("")}
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={loading}
+                className={[
+                  "px-5 py-2 rounded-xl text-white",
+                  "bg-usco-primary disabled:opacity-60",
+                  // animación y feedback
+                  "transition-transform transition-shadow duration-200 ease-out",
+                  "hover:shadow-lg hover:scale-[1.015]",
+                  "active:scale-95",
+                  // accesibilidad
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-usco-primary/40",
+                ].join(" ")}
+              >
+                {loading ? "Entrando..." : "Entrar"}
+              </button>
             </div>
-            <div className="text-gray-500">Encuesta Docente · Login</div>
-          </div>
-        </div>
+          </form>
 
-        {/* Formulario */}
-        <form
-          onSubmit={onSubmit}
-          className="bg-white p-8 rounded-2xl shadow-card"
-        >
-          <h1 className="text-2xl font-bold mb-2">Iniciar sesión</h1>
-          <p className="text-gray-600 mb-6">
-            Acceso con correo institucional <b>@usco.edu.co</b>
+          <p className="text-center text-gray-500 mt-8 text-sm">
+            © USCO — Prototipo para demostración
           </p>
-
-          <label className="text-sm font-medium" htmlFor="email">
-            Correo institucional
-          </label>
-          <input
-            id="email"
-            type="email"
-            className="mt-1 w-full border rounded-xl p-3 outline-none focus:ring-2 focus:ring-usco-primary/30 focus:border-usco-primary"
-            placeholder="usuario@usco.edu.co"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-
-          {error && <div className="text-red-600 mt-2">{error}</div>}
-
-          <div className="flex gap-3 justify-end mt-6">
-            <button
-              type="button"
-              className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200"
-              onClick={() => setEmail("")}
-            >
-              Cancelar
-            </button>
-            <button
-              disabled={loading}
-              className="px-5 py-2 rounded-xl bg-usco-primary text-white disabled:opacity-60"
-            >
-              {loading ? "Entrando..." : "Entrar"}
-            </button>
-          </div>
-        </form>
-
-        <p className="text-center text-gray-500 mt-8 text-sm">
-          © USCO — Prototipo para demostración
-        </p>
-      </div>
+        </div>
+      </main>
 
       {/* MODAL: sin turnos disponibles */}
       {blockedMsg && (
@@ -123,7 +111,7 @@ export default function Login() {
           className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
         >
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
-            <h2 className="text-lg font-semibold mb-2">
+            <h2 className="text-lg font-semibold mb-2 text-usco-primary">
               Sin turnos disponibles
             </h2>
             <p className="text-sm text-gray-700">{blockedMsg}</p>

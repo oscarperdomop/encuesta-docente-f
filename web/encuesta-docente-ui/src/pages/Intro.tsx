@@ -31,7 +31,7 @@ export default function Intro() {
 
   return (
     <USCOHeader
-      subtitle="Encuesta Docente · Presentación"
+      subtitle="Evaluación Docente · Presentación"
       onLogout={handleLogout}
     >
       <div className="min-h-[calc(100vh-5rem)] grid place-items-center">
