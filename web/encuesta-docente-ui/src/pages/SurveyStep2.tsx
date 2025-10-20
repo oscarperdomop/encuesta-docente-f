@@ -1,5 +1,5 @@
 // src/pages/SurveyStep2.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import USCOHeader from "@/components/USCOHeader";
 import { me } from "@/services/auth";
@@ -11,9 +11,14 @@ import {
 } from "@/services/attempts";
 import { useSelection } from "@/store/selection";
 import { loadAttemptExpiry, clearAttemptExpiry } from "@/utils/attemptTimer";
-import ConfirmDialog from "@/components/ConfirmDialog"; // <-- nuevo
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { useAttemptDraft } from "@/store/attemptDraft";
 
 type QRow = QuestionRow & { tipo: "likert" | "texto" };
+
+// Constantes estables FUERA del componente - crítico para evitar loops
+const EMPTY_LIKERT: Record<string, number> = {};
+const EMPTY_TEXTS: Record<string, string> = {};
 
 export default function SurveyStep2() {
   const { attemptId: routeAttemptId } = useParams();
@@ -25,23 +30,60 @@ export default function SurveyStep2() {
     routeAttemptId || null
   );
   const [teacherNombre, setTeacherNombre] = useState("—");
-
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [leftSec, setLeftSec] = useState<number | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-
   const [qsStep1, setQsStep1] = useState<QRow[]>([]);
   const [qsStep2, setQsStep2] = useState<QRow[]>([]);
-
-  const [vals, setVals] = useState<Record<string, number>>({});
-  const [positivos, setPositivos] = useState("");
-  const [mejorar, setMejorar] = useState("");
-  const [comentarios, setComentarios] = useState("");
-
-  // estado del modal
   const [showConfirm, setShowConfirm] = useState(false);
+
+  // Ref para evitar múltiples llamadas a hydrateLegacy
+  const hydratedRef = useRef<Set<string>>(new Set());
+
+  // Store - acceso directo a métodos (estables)
+  const setLikertFn = useAttemptDraft((s) => s.setLikert);
+  const setTextFn = useAttemptDraft((s) => s.setText);
+  const hydrateFromLocalLegacy = useAttemptDraft(
+    (s) => s.hydrateFromLocalLegacy
+  );
+  const clearDraftFn = useAttemptDraft((s) => s.clearAttempt);
+
+  // Leer usando selectors individuales con shallow comparison
+  // IMPORTANTE: Usar EMPTY_LIKERT en lugar de {} para evitar nuevas referencias
+  const s1 = useAttemptDraft(
+    (s) => (attemptId && s.drafts[attemptId]?.step1) || EMPTY_LIKERT,
+    (a, b) => {
+      if (a === b) return true;
+      const keysA = Object.keys(a);
+      const keysB = Object.keys(b);
+      if (keysA.length !== keysB.length) return false;
+      return keysA.every((k) => a[k] === b[k]);
+    }
+  );
+
+  const s2 = useAttemptDraft(
+    (s) => (attemptId && s.drafts[attemptId]?.step2) || EMPTY_LIKERT,
+    (a, b) => {
+      if (a === b) return true;
+      const keysA = Object.keys(a);
+      const keysB = Object.keys(b);
+      if (keysA.length !== keysB.length) return false;
+      return keysA.every((k) => a[k] === b[k]);
+    }
+  );
+
+  const textos = useAttemptDraft(
+    (s) => (attemptId && s.drafts[attemptId]?.textos) || EMPTY_TEXTS,
+    (a, b) => {
+      if (a === b) return true;
+      return (
+        a.positivos === b.positivos &&
+        a.mejorar === b.mejorar &&
+        a.comentarios === b.comentarios
+      );
+    }
+  );
 
   useEffect(() => {
     me()
@@ -53,9 +95,15 @@ export default function SurveyStep2() {
   }, [nav]);
 
   useEffect(() => {
+    let mounted = true;
+
     (async () => {
       if (!surveyId) return;
+
       const next = await getNextAttempt(surveyId);
+
+      if (!mounted) return;
+
       if (!next) {
         alert("No hay intento activo. Regresa a la selección de docentes.");
         nav("/docentes", { replace: true });
@@ -74,6 +122,7 @@ export default function SurveyStep2() {
         nav(`/encuesta/${next.attempt_id}/step2`, { replace: true });
       }
 
+      // Expiración (si tenías guardado)
       const persisted = currentId ? loadAttemptExpiry(currentId) : null;
       const exp = persisted
         ? new Date(persisted)
@@ -82,8 +131,18 @@ export default function SurveyStep2() {
         : null;
       setExpiresAt(exp);
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [surveyId, routeAttemptId]);
+
+    return () => {
+      mounted = false;
+    };
+  }, [surveyId, routeAttemptId, nav]);
+
+  // Ejecutar hydrate una sola vez cuando cambia attemptId
+  useEffect(() => {
+    if (!attemptId || hydratedRef.current.has(attemptId)) return;
+    hydrateFromLocalLegacy(attemptId);
+    hydratedRef.current.add(attemptId);
+  }, [attemptId]); // NO incluir hydrateFromLocalLegacy
 
   useEffect(() => {
     if (!expiresAt) return;
@@ -101,84 +160,56 @@ export default function SurveyStep2() {
   }, [expiresAt, nav]);
 
   useEffect(() => {
+    let mounted = true;
+
     (async () => {
       if (!surveyId) return;
       setLoading(true);
       try {
         const all = (await getSurveyQuestions(surveyId)) as QRow[];
 
+        if (!mounted) return;
+
         const inRange = (from: number, to: number) => (q: QRow) => {
-          const n = Number(q.codigo?.replace(/^Q/i, "") || 0);
+          const n = Number(String(q.codigo || "").replace(/^Q/i, "") || "0");
           return n >= from && n <= to;
         };
 
-        const step1 = all
-          .filter(inRange(1, 9))
-          .sort((a, b) => a.orden - b.orden);
-        const step2 = all
-          .filter(inRange(10, 16))
-          .sort((a, b) => a.orden - b.orden);
-
-        setQsStep1(step1);
-        setQsStep2(step2);
-
-        const init: Record<string, number> = {};
-        step2
-          .filter((q) => q.codigo !== "Q16")
-          .forEach((q) => (init[q.id] = 0));
-
-        if (attemptId) {
-          const raw = localStorage.getItem(`attempt:${attemptId}:step2`);
-          if (raw) {
-            const saved = JSON.parse(raw) as {
-              vals: Record<string, number>;
-              positivos?: string;
-              mejorar?: string;
-              comentarios?: string;
-            };
-            setVals({ ...init, ...(saved?.vals || {}) });
-            setPositivos(saved?.positivos || "");
-            setMejorar(saved?.mejorar || "");
-            setComentarios(saved?.comentarios || "");
-            return;
-          }
-        }
-        setVals(init);
+        setQsStep1(all.filter(inRange(1, 9)).sort((a, b) => a.orden - b.orden));
+        setQsStep2(
+          all.filter(inRange(10, 16)).sort((a, b) => a.orden - b.orden)
+        );
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     })();
-  }, [surveyId, attemptId]);
 
-  useEffect(() => {
-    if (!attemptId) return;
-    localStorage.setItem(
-      `attempt:${attemptId}:step2`,
-      JSON.stringify({ vals, positivos, mejorar, comentarios })
-    );
-  }, [attemptId, vals, positivos, mejorar, comentarios]);
+    return () => {
+      mounted = false;
+    };
+  }, [surveyId]);
 
   const readyStep2 = useMemo(() => {
     const likerts = qsStep2.filter((q) => q.codigo !== "Q16");
     return likerts.every((q) => {
-      const v = vals[q.id] ?? 0;
+      const v = s2[q.id] ?? 0;
       return Number.isInteger(v) && v >= 1 && v <= 5;
     });
-  }, [qsStep2, vals]);
+  }, [qsStep2, s2]);
 
-  const setVal = (qid: string, v: number) =>
-    setVals((p) => ({ ...p, [qid]: v }));
+  const setVal = (qid: string, v: number) => {
+    if (!attemptId) return;
+    setLikertFn(attemptId, 2, qid, v);
+  };
 
   // Validaciones previas + abrir modal
   async function onSubmit() {
     if (!attemptId) return;
 
-    const rawStep1 = localStorage.getItem(`attempt:${attemptId}:step1`);
-    const step1Vals: Record<string, number> = rawStep1
-      ? JSON.parse(rawStep1)
-      : {};
     const readyStep1 = qsStep1.every((q) => {
-      const v = step1Vals[q.id] ?? 0;
+      const v = s1[q.id] ?? 0;
       return Number.isInteger(v) && v >= 1 && v <= 5;
     });
 
@@ -195,7 +226,6 @@ export default function SurveyStep2() {
       return;
     }
 
-    // en vez de window.confirm → modal institucional
     setShowConfirm(true);
   }
 
@@ -207,27 +237,22 @@ export default function SurveyStep2() {
     try {
       setSending(true);
 
-      const rawStep1 = localStorage.getItem(`attempt:${attemptId}:step1`);
-      const step1Vals: Record<string, number> = rawStep1
-        ? JSON.parse(rawStep1)
-        : {};
-
       const a1: LikertAnswer[] = qsStep1.map((q) => ({
         question_id: q.id,
-        value: Number(step1Vals[q.id]),
+        value: Number(s1[q.id]),
       }));
       const a2: LikertAnswer[] = qsStep2
         .filter((q) => q.codigo !== "Q16")
-        .map((q) => ({ question_id: q.id, value: Number(vals[q.id]) }));
+        .map((q) => ({ question_id: q.id, value: Number(s2[q.id]) }));
 
       await submitAttempt(attemptId, [...a1, ...a2], {
-        positivos: (positivos || "").trim(),
-        mejorar: (mejorar || "").trim(),
-        comentarios: (comentarios || "").trim(),
+        positivos: (textos.positivos || "").trim(),
+        mejorar: (textos.mejorar || "").trim(),
+        comentarios: (textos.comentarios || "").trim(),
       });
 
-      localStorage.removeItem(`attempt:${attemptId}:step1`);
-      localStorage.removeItem(`attempt:${attemptId}:step2`);
+      // Limpiar borrador y expiración
+      clearDraftFn(attemptId);
       clearAttemptExpiry(attemptId);
 
       if (!surveyId) return nav("/docentes", { replace: true });
@@ -276,7 +301,9 @@ export default function SurveyStep2() {
             <Section title="USO DE MATERIALES PARA EL DESARROLLO DEL CURSO">
               {qsStep2
                 .filter((q) => {
-                  const n = Number(q.codigo.replace(/^Q/i, ""));
+                  const n = Number(
+                    String(q.codigo || "").replace(/^Q/i, "") || "0"
+                  );
                   return n >= 10 && n <= 11;
                 })
                 .map((q) => (
@@ -285,7 +312,7 @@ export default function SurveyStep2() {
                     label={`${q.codigo}. ${
                       q.enunciado || "Enunciado (reemplazar)"
                     }`}
-                    value={vals[q.id] ?? 0}
+                    value={s2[q.id] ?? 0}
                     onChange={(v) => setVal(q.id, v)}
                   />
                 ))}
@@ -294,7 +321,9 @@ export default function SurveyStep2() {
             <Section title="EVALUACIÓN DEL CONOCIMIENTO">
               {qsStep2
                 .filter((q) => {
-                  const n = Number(q.codigo.replace(/^Q/i, ""));
+                  const n = Number(
+                    String(q.codigo || "").replace(/^Q/i, "") || "0"
+                  );
                   return n >= 12 && n <= 13;
                 })
                 .map((q) => (
@@ -303,7 +332,7 @@ export default function SurveyStep2() {
                     label={`${q.codigo}. ${
                       q.enunciado || "Enunciado (reemplazar)"
                     }`}
-                    value={vals[q.id] ?? 0}
+                    value={s2[q.id] ?? 0}
                     onChange={(v) => setVal(q.id, v)}
                   />
                 ))}
@@ -312,7 +341,9 @@ export default function SurveyStep2() {
             <Section title="MICRODISEÑO DEL CURSO Y BIBLIOGRAFÍA">
               {qsStep2
                 .filter((q) => {
-                  const n = Number(q.codigo.replace(/^Q/i, ""));
+                  const n = Number(
+                    String(q.codigo || "").replace(/^Q/i, "") || "0"
+                  );
                   return n >= 14 && n <= 15;
                 })
                 .map((q) => (
@@ -321,7 +352,7 @@ export default function SurveyStep2() {
                     label={`${q.codigo}. ${
                       q.enunciado || "Enunciado (reemplazar)"
                     }`}
-                    value={vals[q.id] ?? 0}
+                    value={s2[q.id] ?? 0}
                     onChange={(v) => setVal(q.id, v)}
                   />
                 ))}
@@ -330,18 +361,24 @@ export default function SurveyStep2() {
             <Section title="OBSERVACIONES (opcional)">
               <Textarea
                 label="Aspectos positivos"
-                value={positivos}
-                onChange={setPositivos}
+                value={textos.positivos || ""}
+                onChange={(v) =>
+                  attemptId && setTextFn(attemptId, "positivos", v)
+                }
               />
               <Textarea
                 label="Aspectos por mejorar"
-                value={mejorar}
-                onChange={setMejorar}
+                value={textos.mejorar || ""}
+                onChange={(v) =>
+                  attemptId && setTextFn(attemptId, "mejorar", v)
+                }
               />
               <Textarea
                 label="Comentarios generales"
-                value={comentarios}
-                onChange={setComentarios}
+                value={textos.comentarios || ""}
+                onChange={(v) =>
+                  attemptId && setTextFn(attemptId, "comentarios", v)
+                }
               />
             </Section>
 
@@ -364,7 +401,6 @@ export default function SurveyStep2() {
         )}
       </div>
 
-      {/* Modal institucional de confirmación */}
       <ConfirmDialog
         open={showConfirm}
         title="Terminar encuesta"

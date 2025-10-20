@@ -1,5 +1,5 @@
 // src/pages/SurveyStep1.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import USCOHeader from "@/components/USCOHeader";
 import { getSurveyQuestions, QuestionRow } from "@/services/catalogs";
@@ -7,8 +7,10 @@ import { getNextAttempt } from "@/services/attempts";
 import { useSelection } from "@/store/selection";
 import { me } from "@/services/auth";
 import { saveAttemptExpiry } from "@/utils/attemptTimer";
+import { useAttemptDraft } from "@/store/attemptDraft";
 
-type Answers = Record<string, number>;
+// Constante estable para evitar recrear objetos vacíos
+const EMPTY_LIKERT = {};
 
 export default function SurveyStep1() {
   const { attemptId } = useParams<{ attemptId: string }>();
@@ -22,9 +24,27 @@ export default function SurveyStep1() {
 
   const [loading, setLoading] = useState(true);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
-  const [answers, setAnswers] = useState<Answers>({});
 
-  const LS_KEY = `attempt:${attemptId}:step1`;
+  // Ref para evitar múltiples llamadas a hydrateLegacy
+  const hydratedRef = useRef<Set<string>>(new Set());
+
+  // Store de borradores - acceso directo a métodos (estables)
+  const setLikertFn = useAttemptDraft((s) => s.setLikert);
+  const hydrateFromLocalLegacy = useAttemptDraft(
+    (s) => s.hydrateFromLocalLegacy
+  );
+
+  // Leer respuestas con shallow comparison para evitar re-renders
+  const answers = useAttemptDraft(
+    (s) => (attemptId && s.drafts[attemptId]?.step1) || EMPTY_LIKERT,
+    (a, b) => {
+      if (a === b) return true;
+      const keysA = Object.keys(a);
+      const keysB = Object.keys(b);
+      if (keysA.length !== keysB.length) return false;
+      return keysA.every((k) => a[k] === b[k]);
+    }
+  );
 
   useEffect(() => {
     me()
@@ -37,10 +57,16 @@ export default function SurveyStep1() {
 
   useEffect(() => {
     if (!attemptId || !surveyId) return;
+
+    let mounted = true;
+
     (async () => {
       try {
         setLoading(true);
         const next = await getNextAttempt(surveyId);
+
+        if (!mounted) return;
+
         if (!next) {
           alert("No hay intento activo. Regresando a docentes.");
           nav("/docentes", { replace: true });
@@ -56,18 +82,42 @@ export default function SurveyStep1() {
         saveAttemptExpiry(next.attempt_id, next.expires_at || null);
 
         const all = await getSurveyQuestions(surveyId);
+        // Consistencia con Step2: filtra por codigo Q1..Q9
         const step1 = all
-          .filter((q) => q.orden <= 9)
+          .filter((q) => {
+            const n = Number(String(q.codigo || "").replace(/^Q/i, "") || "0");
+            return n >= 1 && n <= 9;
+          })
           .sort((a, b) => a.orden - b.orden);
-        setQuestions(step1);
 
-        const raw = localStorage.getItem(LS_KEY);
-        if (raw) setAnswers(JSON.parse(raw) as Answers);
+        if (mounted) {
+          setQuestions(step1);
+
+          // migra lo guardado antiguamente (si existe) - SOLO UNA VEZ
+          if (!hydratedRef.current.has(attemptId)) {
+            hydrateFromLocalLegacy(attemptId);
+            hydratedRef.current.add(attemptId);
+          }
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     })();
+
+    return () => {
+      mounted = false;
+    };
+    // Solo dependencias primitivas, NO funciones de Zustand
   }, [attemptId, surveyId, nav]);
+
+  // Ejecutar hydrate una sola vez cuando cambia attemptId
+  useEffect(() => {
+    if (!attemptId || hydratedRef.current.has(attemptId)) return;
+    hydrateFromLocalLegacy(attemptId);
+    hydratedRef.current.add(attemptId);
+  }, [attemptId]); // NO incluir hydrateFromLocalLegacy
 
   useEffect(() => {
     if (!expiresAt) return;
@@ -84,10 +134,6 @@ export default function SurveyStep1() {
     return () => clearInterval(id);
   }, [expiresAt, nav]);
 
-  useEffect(() => {
-    if (attemptId) localStorage.setItem(LS_KEY, JSON.stringify(answers));
-  }, [answers, attemptId]);
-
   const bySection = useMemo(() => {
     const groups = new Map<string, QuestionRow[]>();
     for (const q of questions) {
@@ -100,15 +146,12 @@ export default function SurveyStep1() {
   const allAnswered = useMemo(
     () =>
       !!questions.length &&
-      questions.every(
-        (q) => (answers[q.id] ?? 0) >= 1 && (answers[q.id] ?? 0) <= 5
-      ),
+      questions.every((q) => {
+        const v = answers[q.id] ?? 0;
+        return Number.isInteger(v) && v >= 1 && v <= 5;
+      }),
     [questions, answers]
   );
-
-  function setAnswer(qid: string, value: number) {
-    setAnswers((p) => ({ ...p, [qid]: value }));
-  }
 
   const fmtTimer = (s: number | null) =>
     s === null
@@ -122,7 +165,6 @@ export default function SurveyStep1() {
       subtitle="Encuesta Docente · Paso 1/2"
       containerClass="max-w-5xl"
     >
-      {/* Alto mínimo del viewport bajo el header */}
       <div className="min-h-[calc(100vh-5rem)]">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
           <div className="text-sm text-gray-700">
@@ -158,7 +200,12 @@ export default function SurveyStep1() {
                           className="border rounded-xl p-2 outline-none focus:ring-2 focus:ring-usco-primary/30 focus:border-usco-primary"
                           value={answers[q.id] ?? 0}
                           onChange={(e) =>
-                            setAnswer(q.id, Number(e.target.value))
+                            setLikertFn(
+                              attemptId!,
+                              1,
+                              q.id,
+                              Number(e.target.value)
+                            )
                           }
                         >
                           <option value={0}>Seleccionar</option>
