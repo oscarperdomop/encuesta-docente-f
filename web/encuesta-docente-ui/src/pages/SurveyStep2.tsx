@@ -49,41 +49,23 @@ export default function SurveyStep2() {
   );
   const clearDraftFn = useAttemptDraft((s) => s.clearAttempt);
 
-  // Leer usando selectors individuales con shallow comparison
-  // IMPORTANTE: Usar EMPTY_LIKERT en lugar de {} para evitar nuevas referencias
-  const s1 = useAttemptDraft(
-    (s) => (attemptId && s.drafts[attemptId]?.step1) || EMPTY_LIKERT,
-    (a, b) => {
-      if (a === b) return true;
-      const keysA = Object.keys(a);
-      const keysB = Object.keys(b);
-      if (keysA.length !== keysB.length) return false;
-      return keysA.every((k) => a[k] === b[k]);
-    }
+  // Leer el draft completo del intento actual
+  const currentAttemptDraft = useAttemptDraft((s) =>
+    attemptId ? s.drafts[attemptId] : undefined
   );
 
-  const s2 = useAttemptDraft(
-    (s) => (attemptId && s.drafts[attemptId]?.step2) || EMPTY_LIKERT,
-    (a, b) => {
-      if (a === b) return true;
-      const keysA = Object.keys(a);
-      const keysB = Object.keys(b);
-      if (keysA.length !== keysB.length) return false;
-      return keysA.every((k) => a[k] === b[k]);
-    }
-  );
+  // Usar useMemo para cachear y evitar re-renders innecesarios
+  const s1 = useMemo(() => {
+    return currentAttemptDraft?.step1 || EMPTY_LIKERT;
+  }, [currentAttemptDraft?.step1]);
 
-  const textos = useAttemptDraft(
-    (s) => (attemptId && s.drafts[attemptId]?.textos) || EMPTY_TEXTS,
-    (a, b) => {
-      if (a === b) return true;
-      return (
-        a.positivos === b.positivos &&
-        a.mejorar === b.mejorar &&
-        a.comentarios === b.comentarios
-      );
-    }
-  );
+  const s2 = useMemo(() => {
+    return currentAttemptDraft?.step2 || EMPTY_LIKERT;
+  }, [currentAttemptDraft?.step2]);
+
+  const textos = useMemo(() => {
+    return currentAttemptDraft?.textos || EMPTY_TEXTS;
+  }, [currentAttemptDraft?.textos]);
 
   useEffect(() => {
     me()
