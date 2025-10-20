@@ -268,7 +268,8 @@ export default function SurveyStep2() {
       <div className="min-h-[calc(100vh-5rem)]">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <b>{userNombre}</b> · Docente actual: <b>{teacherNombre}</b>
+            <b>Usuario: {userNombre}</b> · Evaluación actual, Docente:{" "}
+            <b>{teacherNombre}</b>
           </div>
           <div className="text-sm text-gray-700">
             Tiempo restante:{" "}

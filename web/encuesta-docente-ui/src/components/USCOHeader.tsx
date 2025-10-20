@@ -20,7 +20,7 @@ type Props = {
 
 export default function USCOHeader({
   title = "Universidad Surcolombiana",
-  subtitle = "Encuesta Docente · Presentación",
+  subtitle = "Evaluación Docente · Presentación",
   containerClass,
   children,
   onLogout,
