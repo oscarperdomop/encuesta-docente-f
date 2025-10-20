@@ -11,19 +11,23 @@ import ProtectedRoute from "@/routes/ProtectedRoute";
 import NotFound from "@/pages/NotFound";
 import ResumenTurno from "@/pages/ResumenTurno";
 
+// admin
+import AdminRoute from "@/routes/AdminRoute";
+import AdminLayout from "@/pages/admin/AdminLayout";
+import EncuestasList from "@/pages/admin/EncuestasList";
+
 export const router = createBrowserRouter(
   [
     {
       path: "/",
       errorElement: <NotFound />,
       children: [
-        // Inicio: si no hay nada, manda a login.
         { index: true, element: <Navigate to="/login" replace /> },
 
         // Público
         { path: "login", element: <Login /> },
 
-        // Privado
+        // Privado (usuario normal)
         {
           path: "intro",
           element: (
@@ -49,7 +53,7 @@ export const router = createBrowserRouter(
           ),
         },
 
-        // Encuesta — SIEMPRE con attemptId
+        // Encuesta
         {
           path: "encuesta/:attemptId/step1",
           element: (
@@ -74,13 +78,34 @@ export const router = createBrowserRouter(
             </ProtectedRoute>
           ),
         },
-        // Si alguien entra a /encuesta/:attemptId sin step ⇒ redirige a step1
         {
           path: "encuesta/:attemptId",
           element: <Navigate to="step1" replace />,
         },
 
-        // 404 explícito
+        // -------- ADMIN --------
+        {
+          path: "admin",
+          element: (
+            <ProtectedRoute>
+              <AdminRoute>
+                <AdminLayout />
+              </AdminRoute>
+            </ProtectedRoute>
+          ),
+          children: [
+            { index: true, element: <Navigate to="encuestas" replace /> },
+            { path: "encuestas", element: <EncuestasList /> },
+
+            // rutas futuras:
+            // { path: "docentes", element: <AdminDocentes /> },
+            // { path: "asignaciones", element: <AdminAsignaciones /> },
+            // { path: "reportes", element: <AdminReportes /> },
+            // { path: "usuarios", element: <AdminUsuarios /> },
+          ],
+        },
+
+        // 404
         { path: "*", element: <NotFound /> },
       ],
     },

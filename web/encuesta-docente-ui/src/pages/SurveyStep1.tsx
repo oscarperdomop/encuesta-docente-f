@@ -10,7 +10,7 @@ import { saveAttemptExpiry } from "@/utils/attemptTimer";
 import { useAttemptDraft } from "@/store/attemptDraft";
 
 // Constante estable para evitar recrear objetos vacíos
-const EMPTY_LIKERT = {};
+const EMPTY_LIKERT: Record<string, number> = {};
 
 export default function SurveyStep1() {
   const { attemptId } = useParams<{ attemptId: string }>();
@@ -34,17 +34,15 @@ export default function SurveyStep1() {
     (s) => s.hydrateFromLocalLegacy
   );
 
-  // Leer respuestas con shallow comparison para evitar re-renders
-  const answers = useAttemptDraft(
-    (s) => (attemptId && s.drafts[attemptId]?.step1) || EMPTY_LIKERT,
-    (a, b) => {
-      if (a === b) return true;
-      const keysA = Object.keys(a);
-      const keysB = Object.keys(b);
-      if (keysA.length !== keysB.length) return false;
-      return keysA.every((k) => a[k] === b[k]);
-    }
+  // Leer el draft completo del intento actual
+  const currentAttemptDraft = useAttemptDraft((s) =>
+    attemptId ? s.drafts[attemptId] : undefined
   );
+
+  // Usar useMemo para cachear y evitar re-renders innecesarios
+  const answers = useMemo(() => {
+    return currentAttemptDraft?.step1 || EMPTY_LIKERT;
+  }, [currentAttemptDraft?.step1]);
 
   useEffect(() => {
     me()
@@ -92,12 +90,6 @@ export default function SurveyStep1() {
 
         if (mounted) {
           setQuestions(step1);
-
-          // migra lo guardado antiguamente (si existe) - SOLO UNA VEZ
-          if (!hydratedRef.current.has(attemptId)) {
-            hydrateFromLocalLegacy(attemptId);
-            hydratedRef.current.add(attemptId);
-          }
         }
       } finally {
         if (mounted) {
