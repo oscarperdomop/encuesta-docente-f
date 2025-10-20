@@ -16,7 +16,7 @@ import { useAttemptDraft } from "@/store/attemptDraft";
 
 type QRow = QuestionRow & { tipo: "likert" | "texto" };
 
-// Constantes estables FUERA del componente - crítico para evitar loops
+// Constantes estables FUERA del componente - crítico para evitar loopsd
 const EMPTY_LIKERT: Record<string, number> = {};
 const EMPTY_TEXTS: Record<string, string> = {};
 
