@@ -15,10 +15,17 @@ export type MeOut = {
   nombre?: string;
   rol?: string;
 };
+export type MeUser = {
+  id: string;
+  email: string;
+  nombre?: string;
+  roles?: string[];
+};
 
-export async function me(): Promise<MeOut> {
+export async function me(): Promise<MeOut & { isAdmin: boolean }> {
   const { data } = await api.get<MeOut>("/auth/me");
-  return data;
+  const isAdmin = ["admin", "superadmin"].includes(data.rol || "");
+  return { ...data, isAdmin };
 }
 
 /** Cierre de sesión robusto + broadcast a otras pestañas. */
@@ -56,4 +63,10 @@ export async function logout(opts?: {
   } catch {
     // noop
   }
+}
+
+// Helper: ¿tiene rol admin?
+export function isAdmin(u?: MeUser | null) {
+  const roles = u?.roles || [];
+  return roles.includes("admin") || roles.includes("superadmin");
 }

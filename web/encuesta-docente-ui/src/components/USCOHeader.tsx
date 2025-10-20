@@ -1,18 +1,16 @@
 // src/components/USCOHeader.tsx
-import { useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { logout as defaultLogout } from "@/services/auth";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { logout as defaultLogout, me, isAdmin } from "@/services/auth";
 import USCOConfirm from "./USCOConfirm";
 
 type Props = {
-  /** Título grande del header (opcional) */
   title?: string;
-  /** Subtítulo bajo el título (opcional) */
   subtitle?: string;
-  /** Clase para el contenedor principal del <main> (por defecto max-w-5xl) */
   containerClass?: string;
-  /** Contenido de la página debajo del header */
   children?: ReactNode;
+  /** Si true, muestra el atajo al panel admin cuando el usuario tiene rol admin */
+  showAdminShortcut?: boolean;
   /**
    * Callback opcional para cerrar sesión. Si no se pasa, usa logout() por defecto.
    * Útil si la página necesita limpieza adicional antes de salir.
@@ -26,10 +24,30 @@ export default function USCOHeader({
   containerClass,
   children,
   onLogout,
+  showAdminShortcut = true,
 }: Props) {
   const nav = useNavigate();
+  const loc = useLocation();
+
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [canAdmin, setCanAdmin] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const u = await me();
+        if (!alive) return;
+        setCanAdmin(isAdmin(u));
+      } catch {
+        setCanAdmin(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   function openConfirm() {
     setConfirmOpen(true);
@@ -42,7 +60,7 @@ export default function USCOHeader({
       if (onLogout) {
         await onLogout();
       } else {
-        // Cierra turno (si aplica) + borra sesión + broadcast a otras pestañas
+        // Cierra turno (best-effort) + limpia sesión + broadcast
         await defaultLogout({ server: false, closeTurno: true });
       }
     } finally {
@@ -52,16 +70,16 @@ export default function USCOHeader({
     }
   }
 
+  const inAdmin = loc.pathname.startsWith("/admin");
+
   return (
     <div className="min-h-screen bg-usco-bg">
-      {/* Favicon (puedes moverlo a index.html si prefieres) */}
       <link
         rel="shortcut icon"
         href="https://www.usco.edu.co/imagen-institucional/favicon.ico"
         type="image/x-icon"
       />
 
-      {/* Header institucional */}
       <header className="border-b bg-white">
         <div className="max-w-5xl mx-auto px-4 md:px-6 py-4 flex items-center gap-3">
           <Link
@@ -81,42 +99,52 @@ export default function USCOHeader({
             )}
           </div>
 
-          {/* Botón Salir -> abre modal de confirmación */}
-          <button
-            type="button"
-            onClick={openConfirm}
-            className="ml-auto inline-flex items-center gap-2 px-3 py-2 rounded-xl border hover:bg-gray-50"
-            aria-label="Cerrar sesión"
-            title="Cerrar sesión"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+          <div className="flex items-center gap-2">
+            {showAdminShortcut && canAdmin && !inAdmin && (
+              <Link
+                to="/admin"
+                className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-sm"
+                aria-label="Panel de administración"
+                title="Panel de administración"
+              >
+                Panel admin
+              </Link>
+            )}
+
+            <button
+              type="button"
+              onClick={openConfirm}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border hover:bg-gray-50"
+              aria-label="Cerrar sesión"
+              title="Cerrar sesión"
             >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            <span className="text-sm font-medium">Salir</span>
-          </button>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span className="text-sm font-medium">Salir</span>
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Contenido de la página */}
       <main
         className={`mx-auto px-4 md:px-6 py-6 ${containerClass ?? "max-w-5xl"}`}
       >
         {children}
       </main>
 
-      {/* Modal de confirmación (estilo USCO) */}
       <USCOConfirm
         open={confirmOpen}
         title="¿Finalizar turno?"
