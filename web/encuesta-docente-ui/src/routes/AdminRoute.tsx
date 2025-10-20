@@ -1,27 +1,29 @@
 // src/routes/AdminRoute.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Navigate } from "react-router-dom";
-import { me, isAdmin, MeUser } from "@/services/auth";
+import { me, isAdmin } from "@/services/auth";
 
-export default function AdminRoute({ children }: { children: JSX.Element }) {
+type AdminRouteProps = { children: ReactNode };
+
+export default function AdminRoute({ children }: AdminRouteProps) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    let ok = true;
+    let alive = true;
     (async () => {
       try {
         const u = await me();
-        if (!ok) return;
+        if (!alive) return;
         setAllowed(isAdmin(u));
       } catch {
         setAllowed(false);
       }
     })();
     return () => {
-      ok = false;
+      alive = false;
     };
   }, []);
 
-  if (allowed === null) return null; // puedes renderizar un mini loader si quieres
-  return allowed ? children : <Navigate to="/login" replace />;
+  if (allowed === null) return null; // o un loader
+  return allowed ? <>{children}</> : <Navigate to="/login" replace />;
 }
