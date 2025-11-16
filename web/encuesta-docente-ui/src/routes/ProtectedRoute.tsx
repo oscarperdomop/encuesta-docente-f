@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { me } from "@/services/auth";
+import { useUser } from "@/contexts/UserContext";
 
 export default function ProtectedRoute({
   children,
@@ -8,31 +8,15 @@ export default function ProtectedRoute({
   children: React.ReactNode;
 }) {
   const nav = useNavigate();
-  const [ok, setOk] = useState<boolean | null>(null);
+  const { user, loading } = useUser();
 
   useEffect(() => {
-    let alive = true;
+    if (!loading && !user) {
+      nav("/login", { replace: true });
+    }
+  }, [loading, user, nav]);
 
-    const ensure = async () => {
-      const t = localStorage.getItem("token");
-      if (!t) {
-        if (alive) setOk(false);
-        nav("/login", { replace: true });
-        return;
-      }
-      try {
-        await me(); // valida en servidor
-        if (alive) setOk(true);
-      } catch {
-        localStorage.removeItem("token");
-        sessionStorage.clear();
-        if (alive) setOk(false);
-        nav("/login", { replace: true });
-      }
-    };
-
-    ensure();
-
+  useEffect(() => {
     // ← cierres de sesión en otras pestañas
     const onStorage = (e: StorageEvent) => {
       if (e.key === "__logout__") nav("/login", { replace: true });
@@ -48,15 +32,14 @@ export default function ProtectedRoute({
     window.addEventListener("pageshow", onPageShow);
 
     return () => {
-      alive = false;
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("pageshow", onPageShow);
     };
   }, [nav]);
 
   // loader mientras validamos sesión
-  if (ok === null)
+  if (loading)
     return <div className="p-6 text-center text-gray-500">Cargando…</div>;
-  if (!ok) return null;
+  if (!user) return null;
   return <>{children}</>;
 }

@@ -13,7 +13,7 @@ export type MeOut = {
   id: string;
   email: string;
   nombre?: string;
-  rol?: string;
+  roles?: string[];
 };
 export type MeUser = {
   id: string;
@@ -24,7 +24,8 @@ export type MeUser = {
 
 export async function me(): Promise<MeOut & { isAdmin: boolean }> {
   const { data } = await api.get<MeOut>("/auth/me");
-  const isAdmin = ["admin", "superadmin"].includes(data.rol || "");
+  const roles = data.roles || [];
+  const isAdmin = roles.includes("admin") || roles.includes("superadmin");
   return { ...data, isAdmin };
 }
 

@@ -42,7 +42,9 @@ export default function EncuestasList() {
         <h1 className="text-xl font-semibold">Encuestas</h1>
         <div className="flex gap-2">
           <input
-            type="text"
+            type="search"
+            name="search"
+            autoComplete="off"
             className="border rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-usco-primary/30"
             placeholder="Buscar por nombre o código…"
             value={q}

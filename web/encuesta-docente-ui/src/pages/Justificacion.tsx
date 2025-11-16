@@ -1,21 +1,19 @@
 // src/pages/Justificacion.tsx
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import USCOHeader from "@/components/USCOHeader";
-import { me } from "@/services/auth";
+import { useUser } from "@/contexts/UserContext";
 
 export default function Justificacion() {
-  const [nombre, setNombre] = useState("");
   const nav = useNavigate();
+  const { user } = useUser();
 
+  // Scroll to top al montar
   useEffect(() => {
-    me()
-      .then((u) => setNombre(u?.nombre || u?.email || "Usuario"))
-      .catch(() => {
-        localStorage.removeItem("token");
-        nav("/login", { replace: true });
-      });
-  }, [nav]);
+    window.scrollTo(0, 0);
+  }, []);
+
+  const nombre = user?.nombre || user?.email || "Usuario";
 
   return (
     <USCOHeader subtitle="Evaluación Docente · Justificación">
@@ -58,7 +56,7 @@ export default function Justificacion() {
                 Regresar
               </button>
               <button
-                className="px-5 py-2 rounded-xl bg-usco-primary text-white"
+                className="px-5 py-2 rounded-xl bg-usco-primary text-white hover:bg-usco-primary/90"
                 onClick={() => nav("/docentes")}
               >
                 Continuar

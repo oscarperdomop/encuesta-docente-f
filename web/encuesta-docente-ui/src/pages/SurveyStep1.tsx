@@ -44,6 +44,11 @@ export default function SurveyStep1() {
     return currentAttemptDraft?.step1 || EMPTY_LIKERT;
   }, [currentAttemptDraft?.step1]);
 
+  // Scroll to top al montar
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     me()
       .then((u) => setUserNombre(u?.nombre || u?.email || "Usuario"))
@@ -223,7 +228,7 @@ export default function SurveyStep1() {
                 </button>
                 <button
                   disabled={!allAnswered}
-                  className="px-5 py-2 rounded-xl bg-usco-primary text-white disabled:opacity-60"
+                  className="px-5 py-2 rounded-xl bg-usco-primary text-white hover:bg-usco-primary/90 disabled:opacity-60"
                   onClick={() => nav(`/encuesta/${attemptId}/step2`)}
                 >
                   Siguiente

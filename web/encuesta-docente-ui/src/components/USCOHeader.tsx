@@ -1,7 +1,8 @@
 // src/components/USCOHeader.tsx
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { logout as defaultLogout, me, isAdmin } from "@/services/auth";
+import { logout as defaultLogout, isAdmin } from "@/services/auth";
+import { useUser } from "@/contexts/UserContext";
 import USCOConfirm from "./USCOConfirm";
 
 type Props = {
@@ -28,26 +29,12 @@ export default function USCOHeader({
 }: Props) {
   const nav = useNavigate();
   const loc = useLocation();
+  const { user } = useUser();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false);
-  const [canAdmin, setCanAdmin] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const u = await me();
-        if (!alive) return;
-        setCanAdmin(isAdmin(u));
-      } catch {
-        setCanAdmin(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
+  
+  const canAdmin = user ? isAdmin(user) : false;
 
   function openConfirm() {
     setConfirmOpen(true);
@@ -108,6 +95,30 @@ export default function USCOHeader({
                 title="Panel de administración"
               >
                 Panel admin
+              </Link>
+            )}
+
+            {inAdmin && (
+              <Link
+                to="/intro"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border hover:bg-gray-50"
+                aria-label="Volver a la vista de usuario"
+                title="Volver a la vista de usuario"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+                <span className="text-sm font-medium">Volver</span>
               </Link>
             )}
 

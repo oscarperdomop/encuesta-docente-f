@@ -35,6 +35,7 @@ export default function DocentesSelect() {
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [q, setQ] = useState("");
   const [evaluatedIds, setEvaluatedIds] = useState<Set<string>>(new Set());
+  const [turnoReady, setTurnoReady] = useState(false);
 
   // --- util: handshake de turno ---
   async function ensureTurnoOpen(): Promise<string> {
@@ -56,6 +57,11 @@ export default function DocentesSelect() {
     return tid;
   }
 
+  // Scroll to top al montar
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // 1) Sesión (obtiene nombre o expulsa al login)
   useEffect(() => {
     me()
@@ -74,6 +80,7 @@ export default function DocentesSelect() {
     (async () => {
       try {
         await ensureTurnoOpen();
+        setTurnoReady(true); // Marca turno como listo
       } catch (e: any) {
         const msg =
           e?.response?.data?.detail ||
@@ -85,8 +92,10 @@ export default function DocentesSelect() {
     })();
   }, [nav]);
 
-  // 3) Datos + estados (evaluados)
+  // 3) Datos + estados (evaluados) - ESPERA a que turno esté listo
   useEffect(() => {
+    if (!turnoReady) return; // Espera a que el turno esté abierto
+
     (async () => {
       setLoading(true);
       try {
@@ -116,16 +125,19 @@ export default function DocentesSelect() {
           }
         }
 
-        // Además, intenta complementar con summary (si tu API lo soporta)
-        try {
-          const summary = await getAttemptsSummary(sid!);
-          for (const it of (summary?.items ?? []) as AttemptsSummary["items"]) {
-            if (it?.estado === "enviado" && it?.teacher_id) {
-              sent.add(it.teacher_id);
+        // Variante A o fallback: complementa con summary si necesario
+        // Solo llamar si hay turnoId y no estamos en variante B
+        if (TEACHERS_VARIANT === "A" && sessionStorage.getItem("turnoId")) {
+          try {
+            const summary = await getAttemptsSummary(sid!);
+            for (const it of (summary?.items ?? []) as AttemptsSummary["items"]) {
+              if (it?.estado === "enviado" && it?.teacher_id) {
+                sent.add(it.teacher_id);
+              }
             }
+          } catch {
+            // ignorar errores de summary
           }
-        } catch {
-          // ignorar errores de summary
         }
 
         // Fallback local (por si usabas almacenamiento local antes)
@@ -140,7 +152,7 @@ export default function DocentesSelect() {
         setLoading(false);
       }
     })();
-  }, [surveyId, setSurveyId]);
+  }, [turnoReady, surveyId, setSurveyId]); // Depende de turnoReady
 
   // 4) Filtro
   const filtered = useMemo(() => {
@@ -232,7 +244,9 @@ export default function DocentesSelect() {
           <div className="bg-white rounded-2xl shadow-card p-4 md:p-6 mb-5">
             <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
               <input
-                type="text"
+                type="search"
+                name="search"
+                autoComplete="off"
                 className="w-full sm:max-w-md border rounded-xl p-3 outline-none focus:ring-2 focus:ring-usco-primary/30 focus:border-usco-primary"
                 placeholder="Buscar docente…"
                 value={q}
@@ -346,7 +360,7 @@ export default function DocentesSelect() {
               <button
                 type="button"
                 disabled={!totalSelected || loading}
-                className="px-5 py-2 rounded-xl bg-usco-primary text-white disabled:opacity-60"
+                className="px-5 py-2 rounded-xl bg-usco-primary text-white hover:bg-usco-primary/90 disabled:opacity-60"
                 onClick={onStart}
               >
                 {loading

@@ -113,7 +113,6 @@ export async function submitAttempt(
   };
   const hasQ16 = !!clean.positivos || !!clean.mejorar || !!clean.comentarios;
 
-  // ¡OJO!: el backend espera `answers[*].value`
   const body: any = {
     answers: answers.map((a) => ({
       question_id: a.question_id,
@@ -121,14 +120,9 @@ export async function submitAttempt(
     })),
   };
 
-  // Clave canónica (la que te funcionó): `textos`
+  // El backend espera 'textos' únicamente
   if (hasQ16) {
     body.textos = clean;
-
-    // Compatibilidad amplia (por si el backend mira otra clave)
-    body.q16 = clean;
-    body.observaciones = clean;
-    body.texto = clean;
   }
 
   const { data } = await api.post<SubmitOut>(
@@ -160,7 +154,9 @@ export async function getAttemptsSummary(
     params: { survey_id: surveyId },
   });
 
+  // El backend puede devolver el formato en diferentes estructuras
   const counts =
+    data?.estados ||      // ← Formato nuevo del backend
     data?.counts ||
     data?.totales ||
     data?.totals ||
@@ -177,6 +173,7 @@ export async function getAttemptsSummary(
   };
 
   const enviados = pickNum(counts, [
+    "enviado",          // ← Formato del backend actual
     "enviados",
     "sent",
     "enviadas",
@@ -189,6 +186,7 @@ export async function getAttemptsSummary(
     "total_en_progreso",
   ]);
   const pendientes = pickNum(counts, [
+    "pendiente",        // ← Formato del backend actual
     "pendientes",
     "pending",
     "total_pendientes",
@@ -198,6 +196,8 @@ export async function getAttemptsSummary(
     ? data.items
     : Array.isArray(data?.docentes)
     ? data.docentes
+    : Array.isArray(data?.intentos)
+    ? data.intentos
     : [];
 
   const can_finish =

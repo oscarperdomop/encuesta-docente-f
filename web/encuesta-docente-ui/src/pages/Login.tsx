@@ -1,7 +1,8 @@
 // src/pages/Login.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { login, me } from "@/services/auth";
+import { login } from "@/services/auth";
+import { useUser } from "@/contexts/UserContext";
 import LoginHeader from "@/components/LoginHeader";
 
 export default function Login() {
@@ -11,6 +12,7 @@ export default function Login() {
   const [blockedMsg, setBlockedMsg] = useState<string | null>(null);
 
   const nav = useNavigate();
+  const { refetch } = useUser();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,7 +21,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email.trim().toLowerCase());
-      await me();
+      await refetch(); // Refresca el contexto de usuario
       nav("/intro", { replace: true });
     } catch (e: any) {
       const status = e?.response?.status;
@@ -61,7 +63,9 @@ export default function Login() {
             </label>
             <input
               id="email"
+              name="email"
               type="email"
+              autoComplete="email"
               className="mt-1 w-full border rounded-xl p-3 outline-none focus:ring-2 focus:ring-usco-primary/30 focus:border-usco-primary"
               placeholder="u2xxxx@usco.edu.co o uxx.ixx@usco.edu.co"
               value={email}
@@ -81,16 +85,7 @@ export default function Login() {
               </button>
               <button
                 disabled={loading}
-                className={[
-                  "px-5 py-2 rounded-xl text-white",
-                  "bg-usco-primary disabled:opacity-60",
-                  // animación y feedback
-                  "transition-transform transition-shadow duration-200 ease-out",
-                  "hover:shadow-lg hover:scale-[1.015]",
-                  "active:scale-95",
-                  // accesibilidad
-                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-usco-primary/40",
-                ].join(" ")}
+                className="px-5 py-2 rounded-xl bg-usco-primary text-white hover:bg-usco-primary/90 disabled:opacity-60"
               >
                 {loading ? "Entrando..." : "Entrar"}
               </button>

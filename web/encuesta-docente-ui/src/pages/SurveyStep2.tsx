@@ -67,6 +67,11 @@ export default function SurveyStep2() {
     return currentAttemptDraft?.textos || EMPTY_TEXTS;
   }, [currentAttemptDraft?.textos]);
 
+  // Scroll to top al montar
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     me()
       .then((u) => setUserNombre(u?.nombre || u?.email || "Usuario"))
@@ -374,7 +379,7 @@ export default function SurveyStep2() {
               </button>
               <button
                 disabled={!readyStep2 || sending || qsStep2.length === 0}
-                className="px-5 py-2 rounded-xl bg-usco-primary text-white disabled:opacity-60"
+                className="px-5 py-2 rounded-xl bg-usco-primary text-white hover:bg-usco-primary/90 disabled:opacity-60"
                 onClick={onSubmit}
               >
                 {sending ? "Enviando…" : "Enviar"}
@@ -458,6 +463,7 @@ function Textarea({
     <div className="bg-gray-50 rounded-xl p-4">
       <div className="mb-2 font-medium">{label}</div>
       <textarea
+        autoComplete="off"
         className="w-full min-h-[120px] border rounded-xl p-3 outline-none focus:ring-2 focus:ring-usco-primary/30 focus:border-usco-primary"
         value={value}
         onChange={(e) => onChange(e.target.value)}
