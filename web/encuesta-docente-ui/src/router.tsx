@@ -14,7 +14,11 @@ import ResumenTurno from "@/pages/ResumenTurno";
 // admin
 import AdminRoute from "@/routes/AdminRoute";
 import AdminLayout from "@/pages/admin/AdminLayout";
+import AdminHome from "@/pages/admin/AdminHome";
 import EncuestasList from "@/pages/admin/EncuestasList";
+import ReportesAvanzados from "@/pages/admin/ReportesAvanzados";
+import Docentes from "@/pages/admin/Docentes";
+import DocentePerfil from "@/pages/admin/DocentePerfil";
 
 export const router = createBrowserRouter(
   [
@@ -94,13 +98,14 @@ export const router = createBrowserRouter(
             </ProtectedRoute>
           ),
           children: [
-            { index: true, element: <Navigate to="encuestas" replace /> },
+            { index: true, element: <AdminHome /> },
             { path: "encuestas", element: <EncuestasList /> },
+            { path: "reportes", element: <ReportesAvanzados /> },
+            { path: "docentes", element: <Docentes /> },
+            { path: "docentes/:teacherId", element: <DocentePerfil /> },
 
             // rutas futuras:
-            // { path: "docentes", element: <AdminDocentes /> },
             // { path: "asignaciones", element: <AdminAsignaciones /> },
-            // { path: "reportes", element: <AdminReportes /> },
             // { path: "usuarios", element: <AdminUsuarios /> },
           ],
         },

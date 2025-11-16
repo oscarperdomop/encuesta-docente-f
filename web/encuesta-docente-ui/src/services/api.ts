@@ -6,7 +6,7 @@ const BASE =
 
 const api = axios.create({
   baseURL: BASE,
-  timeout: Number((import.meta as any).env?.VITE_API_TIMEOUT || 10000),
+  timeout: Number((import.meta as any).env?.VITE_API_TIMEOUT || 30000), // 30 segundos
 });
 
 // Asegura JSON por defecto en envíos

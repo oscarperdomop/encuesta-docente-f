@@ -8,6 +8,11 @@ export default function Intro() {
   const [nombre, setNombre] = useState("");
   const nav = useNavigate();
 
+  // Scroll to top al montar
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     me()
       .then((u) => setNombre(u?.nombre || u?.email || "Usuario"))
@@ -62,7 +67,7 @@ export default function Intro() {
                 Cambiar de usuario
               </button>*/}
               <button
-                className="px-5 py-2 rounded-xl bg-usco-primary text-white"
+                className="px-5 py-2 rounded-xl bg-usco-primary text-white hover:bg-usco-primary/90"
                 onClick={() => nav("/justificacion")}
               >
                 Continuar

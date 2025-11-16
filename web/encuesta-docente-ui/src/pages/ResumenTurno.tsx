@@ -27,6 +27,11 @@ export default function ResumenTurno() {
   // NEW: total de docentes asignados (para calcular "pendientes")
   const [totalDocentes, setTotalDocentes] = useState<number>(0);
 
+  // Scroll to top al montar
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // sesión
   useEffect(() => {
     me()
@@ -218,7 +223,7 @@ export default function ResumenTurno() {
 
             <button
               disabled={!canFinish}
-              className="px-5 py-2 rounded-xl bg-usco-primary text-white disabled:opacity-60"
+              className="px-5 py-2 rounded-xl bg-usco-primary text-white hover:bg-usco-primary/90 disabled:opacity-60"
               onClick={onFinish}
             >
               Finalizar turno
