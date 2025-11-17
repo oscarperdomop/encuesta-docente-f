@@ -61,7 +61,7 @@ export type ReporteResponse = {
  * Obtiene estadísticas generales del sistema
  */
 export async function getStatsOverview(): Promise<StatsOverview> {
-  const { data } = await api.get<StatsOverview>("/admin/stats/overview");
+  const { data } = await api.get<StatsOverview>("/admin/reports/stats/overview");
   return data;
 }
 

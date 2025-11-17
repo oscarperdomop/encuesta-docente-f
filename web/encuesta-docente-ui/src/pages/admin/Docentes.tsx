@@ -32,8 +32,8 @@ export default function Docentes() {
       setLoading(true);
       try {
         const data = await getSurveyTeachers(selectedSurvey, {
-          limit: 1000,
-          includeState: true,
+          limit: 200, // Máximo permitido por el backend
+          includeState: true, // Reactivado ahora que sabemos el problema era el limit
         });
         setTeachers(data);
       } catch (error) {
@@ -57,8 +57,8 @@ export default function Docentes() {
 
   const stats = {
     total: teachers.length,
-    evaluados: teachers.filter((t) => t.evaluated).length,
-    pendientes: teachers.filter((t) => !t.evaluated).length,
+    evaluados: teachers.filter((t) => t.evaluated === true).length,
+    pendientes: teachers.filter((t) => t.evaluated !== true).length,
   };
 
   return (
