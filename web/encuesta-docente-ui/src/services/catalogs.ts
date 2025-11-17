@@ -65,9 +65,9 @@ export async function getSurveyTeachers(
   if (opts.q) params.q = opts.q;
   if (typeof opts.limit === "number") params.limit = opts.limit;
   if (typeof opts.offset === "number") params.offset = opts.offset;
-  if (opts.hideEvaluated) params.hide_evaluated = 1;
+  if (opts.hideEvaluated) params.hide_evaluated = "true";
   // Por defecto pedimos el estado evaluated desde el backend
-  params.include_state = opts.includeState === false ? 0 : 1;
+  params.include_state = opts.includeState === false ? "false" : "true";
 
   const { data } = await api.get<TeacherRow[]>(
     `/surveys/${surveyId}/teachers`,
