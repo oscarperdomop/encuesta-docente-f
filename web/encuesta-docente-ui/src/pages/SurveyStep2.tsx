@@ -267,13 +267,13 @@ export default function SurveyStep2() {
 
   return (
     <USCOHeader
-      subtitle="Encuesta Docente · Paso 2/2"
+      subtitle="Encuesta Docente - Paso 2/2"
       containerClass="max-w-5xl"
     >
       <div className="min-h-[calc(100vh-5rem)]">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <b>Usuario: {userNombre}</b> · Evaluación actual, Docente:{" "}
+            <b>Usuario: {userNombre}</b> - Evaluación actual, Docente:{" "}
             <b>{teacherNombre}</b>
           </div>
           <div className="text-sm text-gray-700">

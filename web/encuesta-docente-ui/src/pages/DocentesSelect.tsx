@@ -221,7 +221,7 @@ export default function DocentesSelect() {
   }
 
   return (
-    <USCOHeader subtitle="Encuesta Docente · Selección de docentes">
+    <USCOHeader subtitle="Encuesta Docente - Selección de docentes">
       {/* Mantén el alto mínimo descontando ~altura del header (5rem) */}
       <div className="min-h-[calc(100vh-5rem)] bg-usco-bg">
         <main className="max-w-5xl mx-auto px-4 md:px-6 py-6">

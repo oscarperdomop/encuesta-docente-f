@@ -159,13 +159,13 @@ export default function SurveyStep1() {
 
   return (
     <USCOHeader
-      subtitle="Encuesta Docente · Paso 1/2"
+      subtitle="Encuesta Docente - Paso 1/2"
       containerClass="max-w-5xl"
     >
       <div className="min-h-[calc(100vh-5rem)]">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
           <div className="text-sm text-gray-700">
-            <b>Usuario: {userNombre}</b> · Evaluación Actual, Docente :{" "}
+            <b>Usuario: {userNombre}</b> - Evaluación Actual, Docente :{" "}
             <b>{teacherNombre}</b>
           </div>
           <div className="text-sm text-gray-700">
