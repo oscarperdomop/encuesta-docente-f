@@ -157,7 +157,7 @@ export default function ResumenTurno() {
 
   return (
     <USCOHeader
-      subtitle="Encuesta Docente · Resumen de turno"
+      subtitle="Encuesta Docente - Resumen de turno"
       containerClass="max-w-5xl"
     >
       <div className="min-h-[calc(100vh-5rem)]">
@@ -166,8 +166,8 @@ export default function ResumenTurno() {
             <b>{userNombre}</b>
           </div>
           <div className="text-sm text-gray-700">
-            Enviados: <b>{counts.enviados}</b> · En progreso:{" "}
-            <b>{counts.en_progreso}</b> · Pendientes: <b>{counts.pendientes}</b>
+            Enviados: <b>{counts.enviados}</b> - En progreso:{" "}
+            <b>{counts.en_progreso}</b> - Pendientes: <b>{counts.pendientes}</b>
           </div>
         </div>
 

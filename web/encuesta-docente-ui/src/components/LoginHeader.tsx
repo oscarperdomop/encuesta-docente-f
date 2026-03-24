@@ -6,18 +6,17 @@ type Props = {
 };
 
 export default function LoginHeader({
-  subtitle = "Evaluación Docente — Licenciatura en Matemáticas",
+  subtitle = "Encuesta Docente de la Licenciatura en Matemáticas - Vigencia 2025-2",
 }: Props) {
   return (
-    <header className="border-b bg-white">
-      {/* Favicon (puedes moverlo a index.html si prefieres) */}
+    <header className="border-b border-usco-primary/15 bg-white">
       <link
         rel="shortcut icon"
         href="https://www.usco.edu.co/imagen-institucional/favicon.ico"
         type="image/x-icon"
       />
 
-      <div className="max-w-5xl mx-auto px-4 md:px-6 py-4 flex items-center gap-3">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 flex items-center gap-3">
         <Link
           to="/"
           className="w-10 h-10 rounded-full bg-usco-primary text-white grid place-items-center font-bold"
@@ -29,7 +28,7 @@ export default function LoginHeader({
           <div className="font-semibold text-base sm:text-lg text-usco-primary truncate">
             Universidad Surcolombiana
           </div>
-          <div className="text-gray-500 text-sm truncate">{subtitle}</div>
+          <div className="text-gray-600 text-sm truncate">{subtitle}</div>
         </div>
       </div>
     </header>
