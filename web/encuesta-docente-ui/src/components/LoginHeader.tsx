@@ -9,7 +9,7 @@ export default function LoginHeader({
   subtitle = "Encuesta Docente de la Licenciatura en Matemáticas - Vigencia 2025-2",
 }: Props) {
   return (
-    <header className="border-b border-usco-primary/15 bg-white">
+    <header className="sticky top-0 z-50 border-b border-usco-primary/15 bg-white/95 backdrop-blur">
       <link
         rel="shortcut icon"
         href="https://www.usco.edu.co/imagen-institucional/favicon.ico"

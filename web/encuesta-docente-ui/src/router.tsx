@@ -19,6 +19,7 @@ import EncuestasList from "@/pages/admin/EncuestasList";
 import ReportesAvanzados from "@/pages/admin/ReportesAvanzados";
 import Docentes from "@/pages/admin/Docentes";
 import DocentePerfil from "@/pages/admin/DocentePerfil";
+import AdminUsuarios from "@/pages/admin/AdminUsuarios";
 
 export const router = createBrowserRouter(
   [
@@ -103,10 +104,10 @@ export const router = createBrowserRouter(
             { path: "reportes", element: <ReportesAvanzados /> },
             { path: "docentes", element: <Docentes /> },
             { path: "docentes/:teacherId", element: <DocentePerfil /> },
+            { path: "usuarios", element: <AdminUsuarios /> },
 
             // rutas futuras:
             // { path: "asignaciones", element: <AdminAsignaciones /> },
-            // { path: "usuarios", element: <AdminUsuarios /> },
           ],
         },
 

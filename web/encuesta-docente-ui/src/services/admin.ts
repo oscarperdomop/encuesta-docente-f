@@ -222,6 +222,14 @@ export type UsuarioAdmin = {
   fecha_creacion: string;
 };
 
+export type UsuariosListResponse = {
+  items: UsuarioAdmin[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+};
+
 /**
  * Lista todos los usuarios
  */
@@ -231,8 +239,8 @@ export async function getUsuarios(params?: {
   estado?: string;
   page?: number;
   per_page?: number;
-}) {
-  const { data } = await api.get("/admin/usuarios", { params });
+}): Promise<UsuariosListResponse> {
+  const { data } = await api.get<UsuariosListResponse>("/admin/usuarios", { params });
   return data;
 }
 
@@ -242,6 +250,11 @@ export async function getUsuarios(params?: {
 export async function updateUsuario(userId: string, updates: Partial<UsuarioAdmin>) {
   const { data } = await api.patch(`/admin/usuarios/${userId}`, updates);
   return data;
+}
+
+export async function getAvailableRoles(): Promise<string[]> {
+  const { data } = await api.get<{ roles: string[] }>("/admin/roles/available");
+  return Array.isArray(data?.roles) ? data.roles : [];
 }
 
 /* ========== HELPERS ========== */
@@ -258,4 +271,120 @@ export function downloadBlob(blob: Blob, filename: string) {
   a.click();
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
+}
+
+/* ========== IMPORTS DOCENTES ========== */
+
+export type TeachersImportResponse = {
+  summary: {
+    inserted: number;
+    updated: number;
+    skipped: number;
+  };
+  errors: Array<{
+    row: number;
+    message: string;
+  }>;
+  assignment?: {
+    survey_id: string;
+    applied: boolean;
+    requested: number;
+    assigned_new: number;
+    already_assigned: number;
+    total_assigned: number;
+  } | null;
+};
+
+export async function downloadTeachersTemplateCSV(): Promise<Blob> {
+  const { data } = await api.get("/admin/imports/teachers/template.csv", {
+    responseType: "blob",
+  });
+  return data;
+}
+
+export async function importTeachersCSV(
+  file: File,
+  opts: { dryRun?: boolean; surveyId?: string } = {}
+): Promise<TeachersImportResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const params: Record<string, string | boolean> = {};
+  if (typeof opts.dryRun === "boolean") params.dry_run = opts.dryRun;
+  if (opts.surveyId) params.survey_id = opts.surveyId;
+
+  const { data } = await api.post<TeachersImportResponse>(
+    "/admin/imports/teachers",
+    formData,
+    {
+      params,
+      headers: { "Content-Type": "multipart/form-data" },
+      timeout: 120000,
+    }
+  );
+  return data;
+}
+
+/* ========== IMPORTS USUARIOS ========== */
+
+export type UsersImportResponse = {
+  summary: {
+    inserted: number;
+    updated: number;
+    skipped: number;
+    roles_granted: number;
+    roles_existing: number;
+  };
+  errors: Array<{
+    row: number;
+    message: string;
+  }>;
+};
+
+export async function downloadUsersTemplateCSV(): Promise<Blob> {
+  const { data } = await api.get("/admin/imports/users/template.csv", {
+    responseType: "blob",
+  });
+  return data;
+}
+
+export async function importUsersCSV(
+  file: File,
+  opts: { dryRun?: boolean; replaceRoles?: boolean } = {}
+): Promise<UsersImportResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const params: Record<string, boolean> = {};
+  if (typeof opts.dryRun === "boolean") params.dry_run = opts.dryRun;
+  if (typeof opts.replaceRoles === "boolean") params.replace_roles = opts.replaceRoles;
+
+  const { data } = await api.post<UsersImportResponse>("/admin/imports/users", formData, {
+    params,
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 120000,
+  });
+  return data;
+}
+
+export type AssignTeachersOut = {
+  survey_id: string;
+  mode: "add" | "remove" | "set";
+  before: number;
+  after: number;
+  added: number;
+  removed: number;
+  unchanged: number;
+};
+
+export async function assignTeachersToSurvey(
+  surveyId: string,
+  teacherIds: string[],
+  mode: "add" | "remove" | "set" = "add"
+): Promise<AssignTeachersOut> {
+  const { data } = await api.post<AssignTeachersOut>(
+    `/admin/surveys/${surveyId}/teachers/assign`,
+    { teacher_ids: teacherIds, mode }
+  );
+  return data;
 }

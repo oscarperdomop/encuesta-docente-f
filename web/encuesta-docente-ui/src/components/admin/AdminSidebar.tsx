@@ -51,9 +51,7 @@ export default function AdminSidebar() {
         Monitoreo
       </div>
       <Item to="/admin/reportes">Reportes</Item>
-      <Item to="/admin/usuarios" disabled>
-        Usuarios
-      </Item>
+      <Item to="/admin/usuarios">Usuarios</Item>
     </nav>
   );
 }

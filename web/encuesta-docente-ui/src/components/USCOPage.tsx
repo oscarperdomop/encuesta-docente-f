@@ -42,7 +42,7 @@ export default function USCOPage({
 
       {showFooter && (
         <p className="text-center text-gray-500 mt-8 mb-6 text-sm">
-          © USCO — Prototipo para demostración
+          USCO - Sistema de Evaluación Docente - Licenciatura en Matemáticas
         </p>
       )}
     </div>

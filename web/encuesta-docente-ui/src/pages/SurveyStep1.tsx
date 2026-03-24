@@ -239,7 +239,7 @@ export default function SurveyStep1() {
         </div>
 
         <p className="text-center text-gray-500 mt-6 text-sm">
-          © USCO — Prototipo para demostración
+          USCO - Sistema de Evaluación Docente - Licenciatura en Matemáticas
         </p>
       </div>
     </USCOHeader>
