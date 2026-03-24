@@ -230,8 +230,7 @@ export default function DocentesSelect() {
             <div className="text-sm text-gray-700">
               Bienvenido, <b>{userNombre}</b>
               <p className="w-full text-sm text-gray-601">
-                Selecciona los Docentes que en el actual semestre toma cursos
-                con ellos.
+                Selecciona los docentes con los que tomaste cursos en la vigencia 2025-02.
               </p>
             </div>
 
@@ -371,7 +370,7 @@ export default function DocentesSelect() {
           </div>
 
           <p className="text-center text-gray-500 mt-6 text-sm">
-            © USCO — Prototipo para demostración
+            USCO - Sistema de Evaluación Docente - Licenciatura en Matemáticas
           </p>
         </main>
       </div>

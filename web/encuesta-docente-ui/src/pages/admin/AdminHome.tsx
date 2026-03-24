@@ -88,7 +88,6 @@ export default function AdminHome() {
                 title="Usuarios"
                 description="Administra usuarios del sistema"
                 icon="👥"
-                disabled
               />
         </div>
       </div>

@@ -106,6 +106,8 @@ export default function Justificacion() {
                 impacto en la formación de futuros licenciados en matemáticas.
               </p>
             </div>
+
+            <RatingScaleChart />
           </section>
         </div>
 
@@ -145,6 +147,39 @@ function InfoChip({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
       <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
       <p className="text-sm font-semibold text-gray-800 mt-1">{value}</p>
+    </div>
+  );
+}
+
+function RatingScaleChart() {
+  const scale = [
+    { value: 1, label: "Muy mala", color: "bg-red-600", width: "w-1/5" },
+    { value: 2, label: "Mala", color: "bg-orange-500", width: "w-2/5" },
+    { value: 3, label: "Regular", color: "bg-amber-400", width: "w-3/5" },
+    { value: 4, label: "Buena", color: "bg-lime-500", width: "w-4/5" },
+    { value: 5, label: "Excelente", color: "bg-emerald-600", width: "w-full" },
+  ] as const;
+
+  return (
+    <div className="mt-4 rounded-xl border border-amber-300/70 bg-[#fff6bf] p-4">
+      <h3 className="text-sm font-semibold text-gray-900">
+        Guía rápida de calificación (escala 1 a 5)
+      </h3>
+      <p className="mt-1 text-xs text-gray-700">
+        1 es la valoración más baja y 5 la más alta.
+      </p>
+
+      <div className="mt-3 space-y-2">
+        {scale.map((item) => (
+          <div key={item.value} className="grid grid-cols-[80px_1fr_84px] items-center gap-2 text-xs">
+            <span className="font-semibold text-gray-700">{item.value}</span>
+            <div className="h-2.5 w-full rounded-full bg-white/80">
+              <div className={`h-full rounded-full ${item.color} ${item.width}`} />
+            </div>
+            <span className="text-gray-800">{item.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
